@@ -1,0 +1,39 @@
+# --- Real data files (never commit timetables, backups, or assessment schedules) ---
+# Block all Excel files by default, then allow only templates/ and sample/
+*.xlsx
+*.xls
+!templates/
+!templates/**
+!sample/
+!sample/**
+
+# Root-level exports & backups (even if renamed)
+/Timetable.xlsx
+/Timetable_backup.xlsx
+/Timetable*.xlsx
+/*Assessment*Schedule*.xlsx
+/*assessment*schedule*.xlsx
+/*backup*.xlsx
+/*_backup.*
+
+# OS & editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# Environment & secrets
+.env
+.env.*
+*.local
+
+# Logs & temp
+*.log
+npm-debug.log*
+.tmp/
+temp/
+
+# Dev scratch scripts (optional local testing)
+_test-*.js
+_inspect-*.js
