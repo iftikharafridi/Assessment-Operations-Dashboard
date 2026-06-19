@@ -111,7 +111,7 @@ curl -L "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs" -o vendor/xlsx/xl
 
 ## Sample timetable
 
-Colleagues can click **Try sample timetable** on the welcome page to load `sample/Timetable.xlsx` (or a small built-in dataset if the file is unavailable). This is for learning the tool before uploading a real timetable.
+Colleagues can click **Try sample timetable** on the welcome page to load `sample/Timetable.xlsx` (or a small built-in dataset if the file is unavailable). This is for learning the tool before uploading a real timetable
 
 See [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) for step-by-step manual tests before go-live.
 
