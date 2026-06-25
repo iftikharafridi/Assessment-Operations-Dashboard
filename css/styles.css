@@ -439,11 +439,22 @@ footer {
   min-width: 4.5rem;
   white-space: nowrap;
 }
+.timetable-grid tbody tr {
+  height: 2.25rem;
+}
 .timetable-grid.layout-day-side td.has-session {
   min-width: 5.5rem;
 }
 td.empty { background: #fafafa; min-height: 28px; }
 td.has-session { background: var(--surface); min-width: 120px; }
+td.has-session.session-span-cell {
+  vertical-align: top;
+  padding: 3px;
+}
+td.has-session.session-span-cell .session {
+  min-height: calc(100% - 4px);
+  box-sizing: border-box;
+}
 
 .session {
   border-radius: 4px;

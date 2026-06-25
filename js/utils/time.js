@@ -16,6 +16,18 @@ export function slotIndex(time) {
   return best;
 }
 
+/** How many 30-minute grid rows/columns a session should span (start slot inclusive). */
+export function sessionSlotSpan(startTime, endTime) {
+  const startIdx = slotIndex(startTime);
+  let endIdx = slotIndex(endTime);
+  const endMin = timeToMinutes(endTime);
+  const endSlotMin = timeToMinutes(TIME_SLOTS[endIdx]);
+  // End exactly on a slot boundary → session finishes at that time, not into the next band.
+  if (endMin === endSlotMin && endIdx > startIdx) endIdx--;
+  const span = endIdx - startIdx + 1;
+  return { startIdx, span: Math.max(1, Math.min(span, TIME_SLOTS.length - startIdx)) };
+}
+
 export function timesOverlap(start1, end1, start2, end2) {
   if (!start1 || !end1 || !start2 || !end2) return false;
   return timeToMinutes(start1) < timeToMinutes(end2) && timeToMinutes(start2) < timeToMinutes(end1);

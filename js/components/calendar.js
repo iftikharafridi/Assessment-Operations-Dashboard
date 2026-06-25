@@ -1,7 +1,7 @@
 import { WEEKDAYS, TIME_SLOTS, campusColor, campusDisplayName } from "../config/constants.js";
 import { parseGroups, typeBadge } from "../utils/groups.js";
 import { esc, unique } from "../utils/dom.js";
-import { slotIndex } from "../utils/time.js";
+import { sessionSlotSpan, slotIndex } from "../utils/time.js";
 import { getSessionStyle, planKey } from "../planner/plans.js";
 import { sessionHasConflict } from "../analytics/dashboard.js";
 
@@ -27,23 +27,53 @@ function renderSessionBlocks(cellSessions, project) {
   return html;
 }
 
-function sessionsAtSlot(campusRows, day, slotIdx) {
+function sessionsStartingAt(campusRows, day, slotIdx) {
   return campusRows.filter((r) => r.Weekday === day && slotIndex(r["Start time"]) === slotIdx);
+}
+
+function maxSessionSpan(sessions) {
+  if (!sessions.length) return 1;
+  return Math.max(
+    ...sessions.map((s) => sessionSlotSpan(s["Start time"], s["End time"]).span)
+  );
+}
+
+function createDayOccupancy() {
+  return Object.fromEntries(WEEKDAYS.map((d) => [d, new Array(TIME_SLOTS.length).fill(false)]));
+}
+
+function markOccupied(occupied, day, startIdx, span) {
+  for (let k = 1; k < span; k++) {
+    if (startIdx + k < TIME_SLOTS.length) occupied[day][startIdx + k] = true;
+  }
 }
 
 function renderCampusGrid(campusRows, project, layout) {
   const layoutClass = layout === "day-side" ? "layout-day-side" : "layout-time-side";
 
   if (layout === "day-side") {
+    const occupied = createDayOccupancy();
     let html = `<table class="timetable-grid ${layoutClass}">
       <thead><tr><th class="day-col">Day</th>${TIME_SLOTS.map((t) => `<th class="time-header">${t}</th>`).join("")}</tr></thead><tbody>`;
+
     for (const day of WEEKDAYS) {
       html += `<tr><td class="day-col">${esc(day.slice(0, 3))}</td>`;
-      for (let si = 0; si < TIME_SLOTS.length; si++) {
-        const cellSessions = sessionsAtSlot(campusRows, day, si);
-        html += cellSessions.length
-          ? `<td class="has-session">${renderSessionBlocks(cellSessions, project)}</td>`
-          : `<td class="empty"></td>`;
+      let si = 0;
+      while (si < TIME_SLOTS.length) {
+        if (occupied[day][si]) {
+          si++;
+          continue;
+        }
+        const starters = sessionsStartingAt(campusRows, day, si);
+        if (starters.length) {
+          const span = maxSessionSpan(starters);
+          markOccupied(occupied, day, si, span);
+          html += `<td class="has-session session-span-cell" colspan="${span}">${renderSessionBlocks(starters, project)}</td>`;
+          si += span;
+        } else {
+          html += `<td class="empty"></td>`;
+          si++;
+        }
       }
       html += `</tr>`;
     }
@@ -51,16 +81,22 @@ function renderCampusGrid(campusRows, project, layout) {
     return html;
   }
 
+  const occupied = createDayOccupancy();
   let html = `<table class="timetable-grid ${layoutClass}">
     <thead><tr><th class="time-col">Time</th>${WEEKDAYS.map((d) => `<th>${d.slice(0, 3)}</th>`).join("")}</tr></thead><tbody>`;
+
   for (let si = 0; si < TIME_SLOTS.length; si++) {
-    const time = TIME_SLOTS[si];
-    html += `<tr><td class="time-col">${time}</td>`;
+    html += `<tr><td class="time-col">${TIME_SLOTS[si]}</td>`;
     for (const day of WEEKDAYS) {
-      const cellSessions = sessionsAtSlot(campusRows, day, si);
-      html += cellSessions.length
-        ? `<td class="has-session">${renderSessionBlocks(cellSessions, project)}</td>`
-        : `<td class="empty"></td>`;
+      if (occupied[day][si]) continue;
+      const starters = sessionsStartingAt(campusRows, day, si);
+      if (starters.length) {
+        const span = maxSessionSpan(starters);
+        markOccupied(occupied, day, si, span);
+        html += `<td class="has-session session-span-cell" rowspan="${span}">${renderSessionBlocks(starters, project)}</td>`;
+      } else {
+        html += `<td class="empty"></td>`;
+      }
     }
     html += `</tr>`;
   }
