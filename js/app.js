@@ -5,6 +5,7 @@ import {
   setInvigilation,
   setProject,
   setTab,
+  setCalendarLayout,
   setTrackerShowAll,
   resetFilters,
   subscribe,
@@ -207,6 +208,10 @@ function renderMain() {
     },
     onInvigChange: (campus, day) => {
       setInvigilation(campus, day);
+      renderMain();
+    },
+    onCalendarLayoutChange: (layout) => {
+      setCalendarLayout(layout);
       renderMain();
     },
   };

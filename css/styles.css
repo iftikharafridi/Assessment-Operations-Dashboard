@@ -377,11 +377,35 @@ footer {
 }
 
 .grid-wrap { overflow-x: auto; }
+.calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+.calendar-toolbar-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.calendar-layout-toggle {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+.calendar-layout-toggle .layout-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
 .timetable-grid {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.72rem;
   min-width: 700px;
+}
+.timetable-grid.layout-day-side {
+  min-width: 1100px;
 }
 .timetable-grid th, .timetable-grid td {
   border: 1px solid var(--border);
@@ -401,6 +425,22 @@ footer {
   color: var(--muted);
   background: #f8fafc;
   white-space: nowrap;
+}
+.day-col {
+  width: 3rem;
+  text-align: center;
+  font-weight: 600;
+  background: #f8fafc;
+  color: var(--text);
+  white-space: nowrap;
+}
+.timetable-grid .time-header {
+  font-size: 0.68rem;
+  min-width: 4.5rem;
+  white-space: nowrap;
+}
+.timetable-grid.layout-day-side td.has-session {
+  min-width: 5.5rem;
 }
 td.empty { background: #fafafa; min-height: 28px; }
 td.has-session { background: var(--surface); min-width: 120px; }

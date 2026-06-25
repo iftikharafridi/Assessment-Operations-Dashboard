@@ -10,6 +10,7 @@ const state = {
   trackerShowAll: false,
   invigCampus: "",
   invigDay: "Monday",
+  calendarLayout: "time-side",
   dirty: false,
   excelReaderReady: true,
 };
@@ -56,4 +57,9 @@ export function setTrackerShowAll(value) {
 
 export function setInvigilation(campus, day) {
   emit({ invigCampus: campus, invigDay: day });
+}
+
+/** @param {'time-side'|'day-side'} layout */
+export function setCalendarLayout(layout) {
+  emit({ calendarLayout: layout });
 }
