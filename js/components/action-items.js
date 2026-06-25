@@ -60,6 +60,6 @@ export function renderActionItemsPanel(items, { title = "Issues & to-do", emptyM
     html += `</ul>`;
   }
 
-  html += `<p class="muted small">Edit tasks and notes on the <strong>Assessments</strong> tab. Save workbook to keep them — filename includes date and time.</p></section>`;
+  html += `<p class="muted small">Edit tasks and notes on the <strong>Assessments</strong> tab. Issues and conflicts are on <strong>Issues &amp; to-do</strong>. Save workbook to keep changes.</p></section>`;
   return html;
 }

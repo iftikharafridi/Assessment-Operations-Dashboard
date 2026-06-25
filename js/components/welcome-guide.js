@@ -16,7 +16,7 @@ export const WELCOME_STEPS = [
   },
   {
     title: "Review the Overview",
-    body: "Check summary cards and <strong>Data checks</strong>. Fix any red or amber items before planning.",
+    body: "Summary cards and weekly timetable. Open <strong>Issues &amp; to-do</strong> for conflicts and action items.",
   },
   {
     title: "Assessments tab",

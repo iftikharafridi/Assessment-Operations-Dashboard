@@ -76,12 +76,22 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
     ? moduleSeminarNotice(project.getTimetableRows(), state.filters, project)
     : "";
 
+  const plannedSeminars = project.getTimetableRows().filter(
+    (r) => r.Type === "Seminar" && normalizePlan(project.getPlan(planKey(r))).planned
+  );
+  const missingInvig = plannedSeminars.filter((s) => !normalizePlan(project.getPlan(planKey(s))).invigilator).length;
+  const assignedInvig = unique(
+    plannedSeminars.map((s) => normalizePlan(project.getPlan(planKey(s))).invigilator).filter(Boolean)
+  );
+
   container.innerHTML = `
     <div class="tracker-actions">
       <button id="export-plans" class="btn btn-primary">Save workbook</button>
       <button id="clear-plans" class="btn btn-danger">Clear all plans</button>
     </div>
     ${intro("Mark seminar slots as class tests, set dates and rooms, and assign invigilators. Use <strong>Show all seminars</strong> to see every slot, or only planned tests by default.")}
+    ${missingInvig ? `<div class="alert alert-warning" role="status"><strong>${missingInvig} planned test${missingInvig === 1 ? "" : "s"} without an invigilator</strong><p>Type a name in the Invigilator column or pick from suggestions (timetable staff). Open <strong>Who is available?</strong> below, then <strong>Save workbook</strong> so names are kept in the file.</p></div>` : ""}
+    ${assignedInvig.length ? `<p class="muted small assigned-invig-summary"><strong>Assigned in this session:</strong> ${assignedInvig.map((n) => esc(n)).join(" · ")}</p>` : ""}
     ${seminarNotice ? `<div class="alert alert-info" role="status"><strong>Filter note</strong><p>${esc(seminarNotice)}</p></div>` : ""}
     ${renderBulkBar()}
     <div class="table-scroll">

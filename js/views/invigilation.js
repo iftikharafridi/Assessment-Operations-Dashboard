@@ -31,8 +31,8 @@ export function renderInvigilationSection({ project, state }) {
 
   const roster = getCampusStaffMap(allRows);
 
-  return `<details class="collapsible-section invigilation-panel" open>
-    <summary>Who is available to invigilate?</summary>
+  return `<details class="collapsible-section invigilation-panel">
+    <summary>Who is available to invigilate? (${campuses.length ? esc(campus) : "pick campus"} · ${esc(day)})</summary>
     <div class="collapsible-body">
       <p class="muted small">Pick the same campus and day as your class test. Busy = teaching that day. Type any name in the table above — suggestions come from your timetable.</p>
       <div class="invig-controls">

@@ -8,6 +8,7 @@ import {
   PLAN_SHEET,
   ASSESSMENT_TRACKING_SHEET,
   REPORT_ASSESSMENT_EVENTS,
+  REPORT_CLASS_TEST_SCHEDULE,
 } from "../config/constants.js";
 import { classifySheet, headersFromSheet, pickBestSheet, sheetToRows } from "./normalize.js";
 import { mapTimetableRows } from "./column-map.js";
@@ -19,7 +20,8 @@ import {
   ASSESSMENT_EXPORT_COLUMNS,
 } from "./assessment-parser.js";
 import { parseAssessmentTrackingFromSheet } from "../analytics/assessment.js";
-import { normalizePlan } from "../planner/plans.js";
+import { normalizePlan, planKey } from "../planner/plans.js";
+import { seminarLookupKey } from "../utils/seminar-match.js";
 
 export { pickBestSheet, sheetToRows, headersFromSheet };
 
@@ -78,7 +80,8 @@ export function parseInvigilationPlanFromSheet(sheet) {
 }
 
 function mergeInvigilationPlan(project, sheet) {
-  if (!sheet) return;
+  if (!sheet) return 0;
+  let restored = 0;
   const updates = parseInvigilationPlanFromSheet(sheet);
   for (const [id, partial] of Object.entries(updates)) {
     const current = normalizePlan(project.plans[id] || {});
@@ -88,7 +91,32 @@ function mergeInvigilationPlan(project, sheet) {
       ...partial,
       planned: current.planned || partial.planned,
     });
+    restored++;
   }
+  return restored;
+}
+
+export function parseClassTestScheduleInvigilators(sheet) {
+  const rows = sheetToRows(sheet);
+  const map = {};
+  for (const row of rows) {
+    const invigilator = String(row.Invigilator ?? row["2nd invigilator"] ?? "").trim();
+    if (!invigilator) continue;
+    const timeCell = row.Time ?? row["Seminar slot"] ?? "";
+    const start = String(timeCell).match(/(\d{1,2}:\d{2})/)?.[1] || "";
+    const weekday = row.Day ?? row.Weekday ?? "";
+    const key = seminarLookupKey(row["Module code"], row.Campus, weekday, start);
+    if (!key.replace(/\|/g, "")) continue;
+    map[key] = { invigilator, planned: true };
+  }
+  return map;
+}
+
+function mergeScheduleInvigilators(project, sheet) {
+  if (!sheet) return;
+  const updates = parseClassTestScheduleInvigilators(sheet);
+  if (!Object.keys(updates).length) return;
+  project._scheduleInvigilators = { ...(project._scheduleInvigilators || {}), ...updates };
 }
 
 export function parseMetaFromSheet(sheet) {
@@ -111,8 +139,11 @@ export function ingestWorkbooks(files) {
     const plansSheet = workbook.Sheets[PLAN_SHEET];
     const metaSheet = workbook.Sheets[META_SHEET];
 
+    let invigilatorsRestored = 0;
     if (plansSheet) Object.assign(project.plans, parsePlansFromSheet(plansSheet));
-    mergeInvigilationPlan(project, workbook.Sheets[INVIGILATION_SHEET]);
+    invigilatorsRestored += mergeInvigilationPlan(project, workbook.Sheets[INVIGILATION_SHEET]);
+    mergeScheduleInvigilators(project, workbook.Sheets[REPORT_CLASS_TEST_SCHEDULE]);
+    if (invigilatorsRestored) project._invigilatorsRestored = (project._invigilatorsRestored || 0) + invigilatorsRestored;
 
     const assessmentEventsSheet = workbook.Sheets[REPORT_ASSESSMENT_EVENTS];
     if (assessmentEventsSheet) {
@@ -255,7 +286,29 @@ export function ingestWorkbooks(files) {
 
   project.importWarnings = [...new Set(warnings)];
   finalizeProject(project);
+  appendInvigilatorWarnings(project);
   return project;
+}
+
+function appendInvigilatorWarnings(project) {
+  const warnings = [...(project.importWarnings || [])];
+  const restored = project._invigilatorsRestored || 0;
+  if (restored) {
+    warnings.push(
+      `Restored ${restored} invigilator name${restored === 1 ? "" : "s"} from your saved workbook.`
+    );
+  }
+  delete project._invigilatorsRestored;
+
+  const seminars = project.getTimetableRows().filter((r) => r.Type === "Seminar");
+  const planned = seminars.filter((s) => normalizePlan(project.getPlan(planKey(s))).planned);
+  const missing = planned.filter((s) => !normalizePlan(project.getPlan(planKey(s))).invigilator).length;
+  if (planned.length && missing) {
+    warnings.push(
+      `${missing} planned class test${missing === 1 ? " has" : "s have"} no invigilator in this file. Assign on the Class tests tab, then Save workbook. If you edited a newer saved file, upload that file — not an older backup.`
+    );
+  }
+  project.importWarnings = [...new Set(warnings)];
 }
 
 function normalizeTimetableFromSheet(rawRows, headers, filename, sheetName) {

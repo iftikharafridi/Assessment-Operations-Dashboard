@@ -14,10 +14,8 @@ import {
   resolveSemesterStart,
 } from "../analytics/assessment.js";
 import { renderAssessmentTimeline, renderUpcomingList } from "../components/assessment-timeline.js";
-import { renderActionItemsPanel } from "../components/action-items.js";
 import { confirmAction } from "../components/dialog.js";
 import { markDirty } from "../state/store.js";
-import { buildActionItems } from "../analytics/assessment.js";
 
 function typeBadge(type) {
   const classes = {
@@ -73,7 +71,6 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
 
   const summary = buildAssessmentSummary(events);
   const classTests = getClassTestCandidates(filtered);
-  const actionItems = buildActionItems(project);
 
   const trackingRowsHtml = filtered
     .map((event) => {
@@ -114,7 +111,6 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
 
   container.innerHTML =
     intro("Semester timeline, coursework deadlines, tasks and notes. Apply class test weeks to the Class tests tab.") +
-    renderActionItemsPanel(actionItems) +
     `<section class="assessment-hub-panel">
       <h3 class="section-heading">Semester position</h3>
       <div class="semester-bar">

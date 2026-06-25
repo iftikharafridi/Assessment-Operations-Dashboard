@@ -1,4 +1,5 @@
 import { assignSessionIds, sessionKey } from "../utils/session-id.js";
+import { seminarLookupKey } from "../utils/seminar-match.js";
 
 /** Combine duplicate plan records that map to the same seminar (stable ID + legacy Session ID). */
 function mergeMatchedPlans(existing, incoming) {
@@ -53,6 +54,22 @@ export function finalizeProject(project) {
   }
 
   project.plans = newPlans;
+
+  if (project._scheduleInvigilators) {
+    let scheduleRestored = 0;
+    for (const row of rows.filter((r) => r.Type === "Seminar")) {
+      const key = seminarLookupKey(row["Module code"], row.Campus, row.Weekday, row["Start time"]);
+      const hint = project._scheduleInvigilators[key];
+      if (!hint) continue;
+      const existing = project.plans[row.sessionId];
+      if (existing?.invigilator) continue;
+      project.plans[row.sessionId] = mergeMatchedPlans(existing, hint);
+      scheduleRestored++;
+    }
+    delete project._scheduleInvigilators;
+    if (scheduleRestored) project._invigilatorsRestored = (project._invigilatorsRestored || 0) + scheduleRestored;
+  }
+
   project.unmatchedPlans = unmatched;
   project.touch();
   return project;

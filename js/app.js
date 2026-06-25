@@ -24,6 +24,7 @@ import { renderWelcomeView } from "./views/welcome.js";
 import { renderOverviewView } from "./views/overview.js";
 import { renderTrackerView } from "./views/tracker.js";
 import { renderAssessmentView } from "./views/assessment.js";
+import { renderIssuesView, countOpenIssues } from "./views/issues.js";
 import { APP_VERSION } from "./config/constants.js";
 import { clearChildren, unique } from "./utils/dom.js";
 
@@ -152,7 +153,7 @@ function renderShell() {
   }
 
   if (tabsEl()) {
-    tabsEl().innerHTML = hasData ? renderTabs(state.activeTab) : "";
+    tabsEl().innerHTML = hasData ? renderTabs(state.activeTab, { issueCount: countOpenIssues(project) }) : "";
     bindTabs(setTab);
   }
 
@@ -216,7 +217,7 @@ function renderMain() {
   viewHost.className = "view-host";
   main.appendChild(viewHost);
 
-  if (!rows.length && state.activeTab !== "assessment") {
+  if (!rows.length && !["assessment", "issues"].includes(normalizeTabId(state.activeTab))) {
     viewHost.innerHTML = `<div class="alert alert-warning" role="status">
       <strong>No sessions match your filters</strong>
       <p>Try clearing one or more filters, or choose <strong>London (all sites)</strong> to include both London RAV and London IH.</p>
@@ -235,6 +236,9 @@ function renderMain() {
       break;
     case "assessment":
       renderAssessmentView(viewCtx);
+      break;
+    case "issues":
+      renderIssuesView(viewCtx);
       break;
     default:
       setTab("overview");

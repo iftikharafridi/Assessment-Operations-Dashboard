@@ -41,7 +41,7 @@ export function showUserGuide() {
   showDialog({
     title: "How to use this dashboard",
     bodyHtml: `
-      <p class="guide-intro">Three tabs: <strong>Overview</strong>, <strong>Class tests</strong>, and <strong>Assessments</strong>.</p>
+      <p class="guide-intro">Four tabs: <strong>Overview</strong>, <strong>Class tests</strong>, <strong>Assessments</strong>, and <strong>Issues &amp; to-do</strong>.</p>
       <ol class="guide-steps">
         ${GUIDE_STEPS.map(
           (step, i) => `<li><strong>${i + 1}. ${esc(step.title)}</strong><p>${step.body}</p></li>`

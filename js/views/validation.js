@@ -32,7 +32,7 @@ export function renderValidationSection(project) {
       </ul></div>`
     : "";
 
-  return `<details class="collapsible-section" open>
+  return `<details class="collapsible-section">
     <summary>Data checks</summary>
     <div class="collapsible-body">
       <div class="validation-summary">
