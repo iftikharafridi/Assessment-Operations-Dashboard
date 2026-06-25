@@ -147,6 +147,31 @@ footer p { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; fo
 .help-columns { columns: 2; margin: 0.5rem 0 0.75rem 1.1rem; font-size: 0.85rem; }
 .help-note { font-size: 0.8rem; }
 
+.collapsible-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 1.25rem 0;
+  overflow: hidden;
+}
+.collapsible-section > summary {
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.collapsible-section > summary::-webkit-details-marker { display: none; }
+.collapsible-section > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.5rem;
+  transition: transform 0.15s;
+}
+.collapsible-section[open] > summary::before { transform: rotate(90deg); }
+.collapsible-body { padding: 0 1rem 1rem; }
+.invigilation-panel { margin-top: 1.5rem; }
+
 .welcome-guide,
 .template-downloads {
   background: var(--surface);

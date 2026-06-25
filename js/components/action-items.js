@@ -24,7 +24,7 @@ export function renderActionItemsPanel(items, { title = "Issues & to-do", emptyM
       <div class="alert alert-info" role="status">
         <p>${esc(
           emptyMessage ||
-            "Nothing flagged yet. On the Assessment hub tab, set Status to Issue, or add Tasks / notes for each coursework item. Class test to-dos appear when invigilators are missing."
+            "Nothing flagged yet. On the Assessments tab, set Status to Issue, or add Tasks / notes. Class test to-dos appear when invigilators are missing."
         )}</p>
       </div>
     </section>`;
@@ -60,6 +60,6 @@ export function renderActionItemsPanel(items, { title = "Issues & to-do", emptyM
     html += `</ul>`;
   }
 
-  html += `<p class="muted small">Edit tasks and notes on the <strong>Assessment hub</strong> tab (Tasks &amp; notes table). Save workbook to keep them — filename includes date and time.</p></section>`;
+  html += `<p class="muted small">Edit tasks and notes on the <strong>Assessments</strong> tab. Save workbook to keep them — filename includes date and time.</p></section>`;
   return html;
 }

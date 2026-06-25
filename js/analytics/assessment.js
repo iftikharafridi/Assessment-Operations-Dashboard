@@ -1,3 +1,4 @@
+import { WEEKDAYS } from "../config/constants.js";
 import { normalizePlan, planKey, updatePlan, markAsClassTest } from "../planner/plans.js";
 import { markDirty } from "../state/store.js";
 import { unique } from "../utils/dom.js";
@@ -73,7 +74,7 @@ export function applyAssessmentToPlans(project, { moduleCode = null } = {}) {
       markAsClassTest(project, sid, seminar.Staff, seminar);
       updatePlan(project, sid, {
         testWeek: primary.weekLabel,
-        testDate: primary.dueDate || primary.weekCommencing || "",
+        testDate: computeClassTestDateForSeminar(primary, seminar),
         status: "Planning",
         notes: noteLines.join("\n"),
       });
@@ -163,6 +164,27 @@ export function filterAssessmentEvents(events, filters = {}) {
     if (filters.classTestOnly && !event.suggestsClassTest) return false;
     return true;
   });
+}
+
+/** Monday-based week commencing → actual calendar date for a seminar weekday. */
+export function dateOnSeminarWeek(weekCommencing, weekday) {
+  const start = parseIsoDate(weekCommencing);
+  if (!start) return String(weekCommencing ?? "").slice(0, 10);
+  const dayIndex = WEEKDAYS.indexOf(weekday);
+  if (dayIndex < 0) return formatIsoDate(start);
+  const d = new Date(start);
+  d.setDate(d.getDate() + dayIndex);
+  return formatIsoDate(d);
+}
+
+/** Class tests run on the seminar day in the scheduled teaching week. */
+export function computeClassTestDateForSeminar(event, seminar) {
+  const weekStart = String(event.weekCommencing ?? "").slice(0, 10);
+  if (weekStart && seminar?.Weekday) {
+    return dateOnSeminarWeek(weekStart, seminar.Weekday);
+  }
+  if (event.dueDate) return String(event.dueDate).slice(0, 10);
+  return weekStart;
 }
 
 export function parseIsoDate(value) {
@@ -357,7 +379,7 @@ export function buildActionItems(project) {
         kind: "issue",
         priority: 1,
         title: label,
-        detail: record.notes || record.tasks || "Marked as an issue — add notes in Assessment hub.",
+        detail: record.notes || record.tasks || "Marked as an issue — add notes on the Assessments tab.",
         linkTab: "assessment",
       });
     }
@@ -394,7 +416,7 @@ export function buildActionItems(project) {
         priority: 1,
         title: `Class test: ${label}`,
         detail: plan.notes || "Class test marked as issue.",
-        linkTab: "tracker",
+        linkTab: "tests",
       });
     }
     if (plan.status === "Invigilator Needed") {
@@ -402,8 +424,8 @@ export function buildActionItems(project) {
         kind: "todo",
         priority: 2,
         title: `Invigilator needed: ${label}`,
-        detail: plan.notes || "Assign an invigilator on the Class test plan tab.",
-        linkTab: "tracker",
+        detail: plan.notes || "Assign an invigilator on the Class tests tab.",
+        linkTab: "tests",
       });
     }
     if (!plan.invigilator && plan.planned && plan.status !== "Completed") {
@@ -412,7 +434,7 @@ export function buildActionItems(project) {
         priority: 3,
         title: `Missing invigilator: ${label}`,
         detail: "No invigilator assigned yet.",
-        linkTab: "tracker",
+        linkTab: "tests",
       });
     }
     if (String(plan.notes ?? "").trim()) {
@@ -421,7 +443,7 @@ export function buildActionItems(project) {
         priority: 4,
         title: `Class test note: ${label}`,
         detail: plan.notes.trim(),
-        linkTab: "tracker",
+        linkTab: "tests",
       });
     }
   }

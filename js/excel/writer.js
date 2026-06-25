@@ -1,14 +1,8 @@
 import {
-  DASHBOARD_SHEET,
   GENERATED_SHEETS,
-  INVIGILATION_SHEET,
   META_SHEET,
   PLAN_COLUMNS,
   PLAN_SHEET,
-  REPORT_CAMPUS_SUMMARY,
-  REPORT_CLASS_TEST_SCHEDULE,
-  REPORT_MISSING_INVIGILATORS,
-  REPORT_TUTOR_WORKLOAD,
   REPORT_ASSESSMENT_EVENTS,
   ASSESSMENT_TRACKING_SHEET,
 } from "../config/constants.js";
@@ -16,14 +10,6 @@ import { eventToRow } from "./assessment-parser.js";
 import { buildAssessmentTrackingExportRows } from "../analytics/assessment.js";
 import { formatTimeRange } from "../utils/time.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
-import {
-  buildCampusSummary,
-  buildClassTestSchedule,
-  buildDashboardSummaryRows,
-  buildMissingInvigilators,
-  buildTutorWorkload,
-} from "../analytics/dashboard.js";
-import { buildInvigilationPlanRows } from "../analytics/invigilation.js";
 import { appendStyledSheet, formatExportTimestamp } from "./sheet-style.js";
 import { XLSX } from "./xlsx.js";
 
@@ -46,12 +32,6 @@ export function exportProjectWorkbook(project) {
   appendAuxiliarySheets(project, wb, primary?.workbook?.SheetNames || []);
 
   appendStyledSheet(wb, buildPlanExportRows(project), PLAN_SHEET, PLAN_COLUMNS);
-  appendStyledSheet(wb, buildInvigilationPlanRows(project), INVIGILATION_SHEET);
-  appendStyledSheet(wb, buildDashboardSummaryRows(project, exportedAt), DASHBOARD_SHEET);
-  appendStyledSheet(wb, buildClassTestSchedule(project), REPORT_CLASS_TEST_SCHEDULE);
-  appendStyledSheet(wb, buildMissingInvigilators(project), REPORT_MISSING_INVIGILATORS);
-  appendStyledSheet(wb, buildCampusSummary(project), REPORT_CAMPUS_SUMMARY);
-  appendStyledSheet(wb, buildTutorWorkload(project), REPORT_TUTOR_WORKLOAD);
   if (project.getAssessmentEvents?.().length) {
     appendStyledSheet(
       wb,

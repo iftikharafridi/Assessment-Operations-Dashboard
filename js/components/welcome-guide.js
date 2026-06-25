@@ -15,16 +15,16 @@ export const WELCOME_STEPS = [
     body: "Click <strong>Add another file</strong> and upload <strong>Assessment-Schedule-template.xlsx</strong> or your programme assessment schedule. Skip this if you reopen a saved workbook.",
   },
   {
-    title: "Check data",
-    body: "Open the <strong>Check data</strong> tab. Fix any red or amber items before planning.",
+    title: "Review the Overview",
+    body: "Check summary cards and <strong>Data checks</strong>. Fix any red or amber items before planning.",
   },
   {
-    title: "Use the Assessment hub",
-    body: "See the semester timeline, upcoming deadlines, and add <strong>Tasks / to-do</strong> and <strong>Notes</strong> for each coursework item.",
+    title: "Assessments tab",
+    body: "Timeline, deadlines, <strong>Tasks / to-do</strong>, and <strong>Apply class test weeks</strong> from the schedule.",
   },
   {
-    title: "Plan class tests",
-    body: "On <strong>Seminar slots</strong> or <strong>Class test plan</strong>, click <strong>Mark as class test</strong>. Assign invigilators and rooms.",
+    title: "Class tests tab",
+    body: "Click <strong>Mark as class test</strong>, set dates and rooms, and assign invigilators. Use <strong>Who is available?</strong> at the bottom of the tab.",
   },
   {
     title: "Save your workbook",

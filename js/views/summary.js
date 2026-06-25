@@ -1,10 +1,12 @@
 import { campusColor } from "../config/constants.js";
 import { buildModuleSummary } from "../analytics/summary.js";
 import { esc } from "../utils/dom.js";
-import { dataTable } from "../components/table.js";
 
-export function renderSummaryView({ rows, container }) {
+/** Compact module list for the Overview tab. */
+export function renderModuleSummarySection(rows) {
   const entries = buildModuleSummary(rows);
+  if (!entries.length) return "";
+
   const rowsHtml = entries
     .map(
       (e) => `<tr>
@@ -13,13 +15,17 @@ export function renderSummaryView({ rows, container }) {
         <td>${e.lectures}</td><td>${e.seminars}</td>
         <td>${[...e.groups].sort().join(", ") || "—"}</td>
         <td>${e.totalSize}</td>
-        <td>${[...e.staff].map(esc).join(", ")}</td>
       </tr>`
     )
     .join("");
 
-  container.innerHTML = dataTable({
-    headers: ["Campus", "Module", "Lectures", "Seminars", "Groups", "Max class size", "Tutors"],
-    rowsHtml,
-  });
+  return `<details class="collapsible-section">
+    <summary>Modules by campus (${entries.length})</summary>
+    <div class="collapsible-body table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Campus</th><th>Module</th><th>Lectures</th><th>Seminars</th><th>Groups</th><th>Max size</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  </details>`;
 }

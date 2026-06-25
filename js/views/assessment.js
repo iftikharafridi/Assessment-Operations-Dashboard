@@ -113,7 +113,7 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
     : `<span class="muted">Set semester start date below to calculate the current teaching week.</span>`;
 
   container.innerHTML =
-    intro("Assessment hub — visualise the semester, track every coursework item, and manage class test planning in one place.") +
+    intro("Semester timeline, coursework deadlines, tasks and notes. Apply class test weeks to the Class tests tab.") +
     renderActionItemsPanel(actionItems) +
     `<section class="assessment-hub-panel">
       <h3 class="section-heading">Semester position</h3>

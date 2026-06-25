@@ -1,20 +1,31 @@
 import { esc } from "../utils/dom.js";
 
+/** Main navigation — keep this list short for colleagues. */
 export const TABS = [
   { id: "overview", label: "Overview" },
-  { id: "validation", label: "Check data" },
-  { id: "timetable", label: "Weekly timetable" },
-  { id: "seminars", label: "Seminar slots" },
-  { id: "tracker", label: "Class test plan" },
-  { id: "assessment", label: "Assessment hub" },
-  { id: "invigilation", label: "Invigilation" },
-  { id: "summary", label: "Module summary" },
+  { id: "tests", label: "Class tests" },
+  { id: "assessment", label: "Assessments" },
 ];
 
+/** Map removed tab ids (bookmarks, old links) to the new layout. */
+export const TAB_ALIASES = {
+  tracker: "tests",
+  invigilation: "tests",
+  seminars: "tests",
+  validation: "overview",
+  summary: "overview",
+  timetable: "overview",
+};
+
+export function normalizeTabId(tab) {
+  return TAB_ALIASES[tab] || tab;
+}
+
 export function renderTabs(activeTab) {
+  const current = normalizeTabId(activeTab);
   return TABS.map(
     (t) =>
-      `<button class="tab-btn${t.id === activeTab ? " active" : ""}" data-tab="${t.id}">${esc(t.label)}</button>`
+      `<button class="tab-btn${t.id === current ? " active" : ""}" data-tab="${t.id}">${esc(t.label)}</button>`
   ).join("");
 }
 

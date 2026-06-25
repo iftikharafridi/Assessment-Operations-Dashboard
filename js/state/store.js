@@ -1,6 +1,7 @@
 /** Lightweight pub/sub store for UI and project state. */
 
 import { defaultFilters } from "../analytics/filters.js";
+import { normalizeTabId } from "../components/tabs.js";
 
 const state = {
   project: null,
@@ -34,7 +35,7 @@ export function setProject(project) {
 }
 
 export function setTab(tab) {
-  emit({ activeTab: tab });
+  emit({ activeTab: normalizeTabId(tab) });
 }
 
 export function setFilters(partial) {

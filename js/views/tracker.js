@@ -14,6 +14,8 @@ import { confirmAction } from "../components/dialog.js";
 import { getInvigilatorAvailability, getCampusStaffMap } from "../analytics/invigilation.js";
 import { renderBulkBar, bindBulkBar } from "../planner/bulk.js";
 import { sessionHasConflict } from "../analytics/dashboard.js";
+import { moduleSeminarNotice } from "../analytics/filters.js";
+import { renderInvigilationSection, bindInvigilationSection } from "./invigilation.js";
 
 function statusOptions(selected) {
   return PLAN_STATUSES.map(
@@ -21,7 +23,7 @@ function statusOptions(selected) {
   ).join("");
 }
 
-export function renderTrackerView({ project, rows, container, state, onUpdate, onExport, onClear }) {
+export function renderTrackerView({ project, rows, container, state, onUpdate, onExport, onClear, onInvigChange }) {
   const allRows = project.getTimetableRows();
   const seminars = rows.filter((r) => r.Type === "Seminar");
   const showAll = state.trackerShowAll;
@@ -34,9 +36,8 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
       const plan = normalizePlan(project.getPlan(sid));
       const groups = parseGroups(s.Activity, s["Student Groups"]);
       const campusStaff = staffByCampus[s.Campus] || [];
-      const invigOptions = unique([...campusStaff, plan.invigilator].filter(Boolean))
-        .map((name) => `<option value="${esc(name)}" ${plan.invigilator === name ? "selected" : ""}>${esc(name)}</option>`)
-        .join("");
+      const invigSuggestions = unique([...campusStaff, plan.invigilator].filter(Boolean));
+      const invigListId = `invig-list-${sid.replace(/[^a-z0-9-]/gi, "")}`;
       const invigWarning = plan.invigilator ? getInvigilatorAvailability(plan.invigilator, s, plan, allRows).warning : "";
       const conflict = sessionHasConflict(project, sid);
 
@@ -59,7 +60,11 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
         <td><input class="plan-field" data-id="${sid}" data-field="room" value="${esc(plan.room || s.Room || "")}"></td>
         <td><input type="checkbox" class="plan-check" data-id="${sid}" data-field="roomConfirmed" ${plan.roomConfirmed ? "checked" : ""} title="Room confirmed"></td>
         <td><input class="plan-field" data-id="${sid}" data-field="leadTutor" value="${esc(plan.leadTutor || s.Staff)}"></td>
-        <td><select class="plan-field invig-select" data-id="${sid}" data-field="invigilator"><option value="">— Select —</option>${invigOptions}</select>${invigWarning ? `<div class="field-warning">${esc(invigWarning)}</div>` : ""}</td>
+        <td>
+          <input class="plan-field invig-input" data-id="${sid}" data-field="invigilator" list="${esc(invigListId)}" value="${esc(plan.invigilator)}" placeholder="Type or pick a name">
+          <datalist id="${esc(invigListId)}">${invigSuggestions.map((name) => `<option value="${esc(name)}">`).join("")}</datalist>
+          ${invigWarning ? `<div class="field-warning">${esc(invigWarning)}</div>` : ""}
+        </td>
         <td><input type="checkbox" class="plan-check" data-id="${sid}" data-field="paperReady" ${plan.paperReady ? "checked" : ""}></td>
         <td><input type="checkbox" class="plan-check" data-id="${sid}" data-field="lodReady" ${plan.lodReady ? "checked" : ""}></td>
         <td><input class="plan-field wide" data-id="${sid}" data-field="notes" value="${esc(plan.notes)}"></td>
@@ -67,12 +72,17 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
     })
     .join("");
 
+  const seminarNotice = state?.filters?.moduleCode
+    ? moduleSeminarNotice(project.getTimetableRows(), state.filters, project)
+    : "";
+
   container.innerHTML = `
     <div class="tracker-actions">
       <button id="export-plans" class="btn btn-primary">Save workbook</button>
       <button id="clear-plans" class="btn btn-danger">Clear all plans</button>
     </div>
-    ${intro("Complete your class test plan for each seminar. Enter duration in minutes to auto-fill the end time. Use bulk actions when several slots share the same week or invigilator.")}
+    ${intro("Mark seminar slots as class tests, set dates and rooms, and assign invigilators. Use <strong>Show all seminars</strong> to see every slot, or only planned tests by default.")}
+    ${seminarNotice ? `<div class="alert alert-info" role="status"><strong>Filter note</strong><p>${esc(seminarNotice)}</p></div>` : ""}
     ${renderBulkBar()}
     <div class="table-scroll">
     ${dataTable({
@@ -81,10 +91,12 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
       className: "data-table tracker-table",
     })}
     </div>
-    <label class="show-all"><input type="checkbox" id="tracker-show-all" ${showAll ? "checked" : ""}> Show all seminars</label>`;
+    <label class="show-all"><input type="checkbox" id="tracker-show-all" ${showAll ? "checked" : ""}> Show all seminars</label>
+    ${renderInvigilationSection({ project, state })}`;
 
   bindRowActions(container, project, seminars, onUpdate);
   bindBulkBar(container, project, onUpdate);
+  if (onInvigChange) bindInvigilationSection(container, { onInvigChange });
 
   document.getElementById("export-plans")?.addEventListener("click", onExport);
   document.getElementById("clear-plans")?.addEventListener("click", () => {

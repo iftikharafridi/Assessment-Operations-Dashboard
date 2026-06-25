@@ -16,19 +16,14 @@ import { downloadProjectExcel } from "./excel/writer.js";
 import { isExcelReaderReady } from "./excel/xlsx.js";
 import { loadSampleTimetable } from "./data/sample-loader.js";
 import { renderFiltersPanel, applyFiltersToDom, bindFilterEvents, readFiltersFromDom } from "./components/filters.js";
-import { renderTabs, bindTabs } from "./components/tabs.js";
+import { renderTabs, bindTabs, normalizeTabId } from "./components/tabs.js";
 import { renderProjectFiles, renderImportWarnings } from "./components/dropzone.js";
 import { renderExcelReaderError } from "./components/excel-error.js";
 import { renderUserGuideButton, bindUserGuide } from "./components/user-guide.js";
 import { renderWelcomeView } from "./views/welcome.js";
 import { renderOverviewView } from "./views/overview.js";
-import { renderTimetableView } from "./views/timetable.js";
-import { renderSeminarsView } from "./views/seminars.js";
 import { renderTrackerView } from "./views/tracker.js";
-import { renderInvigilationView } from "./views/invigilation.js";
-import { renderSummaryView } from "./views/summary.js";
 import { renderAssessmentView } from "./views/assessment.js";
-import { renderValidationView } from "./views/validation.js";
 import { APP_VERSION } from "./config/constants.js";
 import { clearChildren, unique } from "./utils/dom.js";
 
@@ -231,30 +226,15 @@ function renderMain() {
 
   const viewCtx = { ...ctx, container: viewHost };
 
-  switch (state.activeTab) {
+  switch (normalizeTabId(state.activeTab)) {
     case "overview":
       renderOverviewView(viewCtx);
       break;
-    case "validation":
-      renderValidationView(viewCtx);
-      break;
-    case "timetable":
-      renderTimetableView(viewCtx);
-      break;
-    case "seminars":
-      renderSeminarsView(viewCtx);
-      break;
-    case "tracker":
+    case "tests":
       renderTrackerView(viewCtx);
       break;
     case "assessment":
       renderAssessmentView(viewCtx);
-      break;
-    case "invigilation":
-      renderInvigilationView(viewCtx);
-      break;
-    case "summary":
-      renderSummaryView(viewCtx);
       break;
     default:
       setTab("overview");

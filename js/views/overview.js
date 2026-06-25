@@ -1,18 +1,24 @@
 import { renderSummaryCards, renderConflictList } from "../components/summary-cards.js";
 import { renderActionItemsPanel } from "../components/action-items.js";
 import { buildActionItems } from "../analytics/assessment.js";
-import { intro } from "../components/table.js";import { renderWeeklyCalendar, bindSessionClicks } from "../components/calendar.js";
+import { intro } from "../components/table.js";
+import { renderWeeklyCalendar, bindSessionClicks } from "../components/calendar.js";
 import { showSessionDialog } from "../components/dialog.js";
 import { parseGroups } from "../utils/groups.js";
+import { renderValidationSection } from "./validation.js";
+import { renderModuleSummarySection } from "./summary.js";
 
 export function renderOverviewView({ project, rows, container }) {
   const actionItems = buildActionItems(project);
 
   container.innerHTML =
-    intro("At-a-glance view of your class test planning. Use the tabs above to plan tests, assign invigilators, and save your workbook.") +
+    intro("Summary of your timetable, class test planning, and assessment deadlines. Plan details on the <strong>Class tests</strong> tab; coursework on <strong>Assessments</strong>.") +
     renderSummaryCards(project) +
     renderActionItemsPanel(actionItems, { title: "Issues & to-do" }) +
-    renderConflictList(project) +    `<h3 class="section-heading">Weekly timetable by campus</h3>` +
+    renderConflictList(project) +
+    renderValidationSection(project) +
+    renderModuleSummarySection(rows) +
+    `<h3 class="section-heading">Weekly timetable</h3>` +
     renderWeeklyCalendar(rows, project);
 
   bindSessionClicks(container, rows, (row) => {

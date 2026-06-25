@@ -1,7 +1,14 @@
 import { XLSX } from "./xlsx.js";
 import { createEmptyProject } from "../model/project.js";
 import { finalizeProject } from "../model/finalize.js";
-import { GENERATED_SHEETS, META_SHEET, PLAN_SHEET, ASSESSMENT_TRACKING_SHEET, REPORT_ASSESSMENT_EVENTS } from "../config/constants.js";
+import {
+  GENERATED_SHEETS,
+  INVIGILATION_SHEET,
+  META_SHEET,
+  PLAN_SHEET,
+  ASSESSMENT_TRACKING_SHEET,
+  REPORT_ASSESSMENT_EVENTS,
+} from "../config/constants.js";
 import { classifySheet, headersFromSheet, pickBestSheet, sheetToRows } from "./normalize.js";
 import { mapTimetableRows } from "./column-map.js";
 import {
@@ -57,6 +64,33 @@ export function parsePlansFromSheet(sheet) {
   return plans;
 }
 
+/** Merge invigilator names saved on the Invigilation Plan sheet (legacy Session ID key). */
+export function parseInvigilationPlanFromSheet(sheet) {
+  const rows = sheetToRows(sheet);
+  const updates = {};
+  for (const row of rows) {
+    const id = String(row["Session ID"] ?? row.ID ?? "").trim();
+    const invigilator = String(row.Invigilator ?? row["2nd invigilator"] ?? "").trim();
+    if (!id || !invigilator) continue;
+    updates[id] = { invigilator, planned: true };
+  }
+  return updates;
+}
+
+function mergeInvigilationPlan(project, sheet) {
+  if (!sheet) return;
+  const updates = parseInvigilationPlanFromSheet(sheet);
+  for (const [id, partial] of Object.entries(updates)) {
+    const current = normalizePlan(project.plans[id] || {});
+    if (current.invigilator) continue;
+    project.plans[id] = normalizePlan({
+      ...current,
+      ...partial,
+      planned: current.planned || partial.planned,
+    });
+  }
+}
+
 export function parseMetaFromSheet(sheet) {
   if (!sheet) return null;
   const rows = sheetToRows(sheet);
@@ -78,6 +112,7 @@ export function ingestWorkbooks(files) {
     const metaSheet = workbook.Sheets[META_SHEET];
 
     if (plansSheet) Object.assign(project.plans, parsePlansFromSheet(plansSheet));
+    mergeInvigilationPlan(project, workbook.Sheets[INVIGILATION_SHEET]);
 
     const assessmentEventsSheet = workbook.Sheets[REPORT_ASSESSMENT_EVENTS];
     if (assessmentEventsSheet) {

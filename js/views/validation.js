@@ -1,8 +1,8 @@
 import { esc } from "../utils/dom.js";
 import { runDataValidation } from "../analytics/validation.js";
-import { intro } from "../components/table.js";
 
-export function renderValidationView({ project, container }) {
+/** Compact data-check block for the Overview tab. */
+export function renderValidationSection(project) {
   const report = runDataValidation(project);
 
   const checksHtml = report.checks
@@ -21,7 +21,7 @@ export function renderValidationView({ project, container }) {
   const unmatchedHtml = report.details.unmatchedPlans.length
     ? `<div class="alert alert-warning"><strong>Saved class test plans not matched</strong><ul>
         ${report.details.unmatchedPlans.map((u) => `<li>${esc(u.sessionId)}${u.label ? ` — ${esc(u.label)}` : ""}</li>`).join("")}
-      </ul><p class="muted">These plans were kept but could not be linked to a current seminar row. Check if the timetable changed.</p></div>`
+      </ul></div>`
     : "";
 
   const assessmentHtml = (report.details.assessmentIssues || [])
@@ -32,18 +32,23 @@ export function renderValidationView({ project, container }) {
       </ul></div>`
     : "";
 
-  container.innerHTML =
-    intro("Review imported data before planning class tests. Green means OK, amber means review recommended, red means attention needed.") +
-    `<div class="validation-summary">
-      <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.sessions}</span><span class="summary-label">Sessions</span></div>
-      <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.campuses}</span><span class="summary-label">Campuses</span></div>
-      <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.modules}</span><span class="summary-label">Modules</span></div>
-      <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.tutors}</span><span class="summary-label">Tutors</span></div>
-      <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.rooms}</span><span class="summary-label">Rooms listed</span></div>
-      <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.seminarSlots}</span><span class="summary-label">Seminar slots</span></div>
+  return `<details class="collapsible-section" open>
+    <summary>Data checks</summary>
+    <div class="collapsible-body">
+      <div class="validation-summary">
+        <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.sessions}</span><span class="summary-label">Sessions</span></div>
+        <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.campuses}</span><span class="summary-label">Campuses</span></div>
+        <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.modules}</span><span class="summary-label">Modules</span></div>
+        <div class="summary-card tone-neutral"><span class="summary-value">${report.summary.seminarSlots}</span><span class="summary-label">Seminars</span></div>
+      </div>
+      ${unmatchedHtml}
+      ${assessmentHtml}
+      <div class="check-list">${checksHtml}</div>
     </div>
-    ${unmatchedHtml}
-    ${assessmentHtml}
-    <h3 class="section-heading">Data checks</h3>
-    <div class="check-list">${checksHtml}</div>`;
+  </details>`;
+}
+
+/** @deprecated Use renderValidationSection — kept for tests. */
+export function renderValidationView({ project, container }) {
+  container.innerHTML = renderValidationSection(project);
 }

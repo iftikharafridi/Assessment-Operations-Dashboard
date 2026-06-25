@@ -2,9 +2,9 @@ import { WEEKDAYS, campusColor } from "../config/constants.js";
 import { buildInvigilationView, getCampusStaffMap } from "../analytics/invigilation.js";
 import { rosterGrid } from "../components/card.js";
 import { esc, unique } from "../utils/dom.js";
-import { dataTable, intro } from "../components/table.js";
+import { dataTable } from "../components/table.js";
 
-export function renderInvigilationView({ project, rows, container, state, onInvigChange }) {
+export function renderInvigilationSection({ project, state }) {
   const allRows = project.getTimetableRows();
   const campuses = unique(allRows.map((r) => r.Campus)).sort();
   const campus = state.invigCampus || campuses[0] || "";
@@ -31,20 +31,26 @@ export function renderInvigilationView({ project, rows, container, state, onInvi
 
   const roster = getCampusStaffMap(allRows);
 
-  container.innerHTML =
-    intro("Invigilators should normally come from the <strong>same campus</strong> as the class. Staff are listed automatically from your timetable. Busy means they are teaching that day; Conflict means they overlap a planned class test.") +
-    `<div class="invig-controls">
-      <label>Campus <select id="invig-campus">${campuses.map((c) => `<option value="${esc(c)}" ${c === campus ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
-      <label>Day <select id="invig-day">${WEEKDAYS.map((d) => `<option value="${d}" ${d === day ? "selected" : ""}>${d}</option>`).join("")}</select></label>
+  return `<details class="collapsible-section invigilation-panel" open>
+    <summary>Who is available to invigilate?</summary>
+    <div class="collapsible-body">
+      <p class="muted small">Pick the same campus and day as your class test. Busy = teaching that day. Type any name in the table above — suggestions come from your timetable.</p>
+      <div class="invig-controls">
+        <label>Campus <select id="invig-campus">${campuses.map((c) => `<option value="${esc(c)}" ${c === campus ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+        <label>Day <select id="invig-day">${WEEKDAYS.map((d) => `<option value="${d}" ${d === day ? "selected" : ""}>${d}</option>`).join("")}</select></label>
+      </div>
+      ${dataTable({ headers: ["Staff", "Status", "Teaching that day", "Test clashes", "Guidance"], rowsHtml })}
+      <h4 class="section-heading">Staff by campus</h4>
+      ${rosterGrid(Object.entries(roster), campusColor)}
     </div>
-    ${dataTable({ headers: ["Staff", "Status", "Teaching that day", "Test clashes", "Guidance"], rowsHtml })}
-    <h3 class="section-heading">Staff by campus</h3>
-    ${rosterGrid(Object.entries(roster), campusColor)}`;
+  </details>`;
+}
 
+export function bindInvigilationSection(container, { onInvigChange }) {
   document.getElementById("invig-campus")?.addEventListener("change", (e) => {
-    onInvigChange(e.target.value, document.getElementById("invig-day").value);
+    onInvigChange(e.target.value, document.getElementById("invig-day")?.value || "Monday");
   });
   document.getElementById("invig-day")?.addEventListener("change", (e) => {
-    onInvigChange(document.getElementById("invig-campus").value, e.target.value);
+    onInvigChange(document.getElementById("invig-campus")?.value || "", e.target.value);
   });
 }
