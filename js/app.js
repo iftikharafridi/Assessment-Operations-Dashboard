@@ -14,7 +14,7 @@ import { filterTimetableRows, sanitizeFilters } from "./analytics/filters.js";
 import { ingestWorkbooks, readWorkbook } from "./excel/reader.js";
 import { finalizeProject } from "./model/finalize.js";
 import { downloadProjectExcel } from "./excel/writer.js";
-import { isExcelReaderReady, isStyledExcelReady } from "./excel/xlsx.js";
+import { isExcelReaderReady, isStyledExcelReady, EXCEL_STYLE_ERROR_MSG } from "./excel/xlsx.js";
 import { renderExportMenu, bindExportMenu } from "./components/export-menu.js";
 import { loadSampleTimetable } from "./data/sample-loader.js";
 import { renderFiltersPanel, applyFiltersToDom, bindFilterEvents, readFiltersFromDom } from "./components/filters.js";
@@ -54,10 +54,16 @@ function requireExcelReader() {
 
 function safeDownloadExcel(project, options = {}) {
   if (!requireExcelReader()) return false;
-  try {
-    if (!isStyledExcelReady()) {
-      console.warn("Styled Excel library unavailable — export will have no colours.");
+  if (!isStyledExcelReady()) {
+    if (alertsEl()) {
+      alertsEl().innerHTML = `<div class="alert alert-error" role="alert">
+        <strong>Excel colours unavailable</strong>
+        <p>${EXCEL_STYLE_ERROR_MSG}</p>
+      </div>`;
     }
+    return false;
+  }
+  try {
     downloadProjectExcel(project, options);
     return true;
   } catch (err) {

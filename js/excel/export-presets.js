@@ -33,7 +33,7 @@ import {
   buildPlanExportRows,
   buildWeeklyTimetableRows,
 } from "./workbook-builders.js";
-import { XLSX } from "./xlsx.js";
+import { getWriteXlsx } from "./xlsx.js";
 
 /** @typedef {'full'|'classTestPlans'|'classTestSchedule'|'invigilationPlan'|'weeklyTimetable'|'campusSummary'|'tutorWorkload'|'missingInvigilators'|'assessmentEvents'|'assessmentTracking'} ExportPresetId */
 
@@ -181,7 +181,7 @@ export function buildWorkbookForPreset(project, presetId = "full") {
   const preset = getExportPreset(presetId);
   if (preset.id === "full") return buildFullWorkbook(project);
 
-  const wb = XLSX.utils.book_new();
+  const wb = getWriteXlsx().utils.book_new();
   const built = preset.build(project);
   const headers = built.headers || (built.rows[0] ? Object.keys(built.rows[0]) : []);
   appendStyledSheet(wb, built.rows, built.name, headers, preset.sheetKind || "default");
@@ -195,7 +195,7 @@ export function buildWorkbookForPreset(project, presetId = "full") {
 }
 
 function buildFullWorkbook(project) {
-  const wb = XLSX.utils.book_new();
+  const wb = getWriteXlsx().utils.book_new();
   const primary = project.datasets.timetable[0];
   const exportedAt = formatExportTimestamp();
 

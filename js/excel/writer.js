@@ -1,5 +1,5 @@
 import { buildWorkbookForPreset, getExportPreset } from "./export-presets.js";
-import { XLSX } from "./xlsx.js";
+import { getWriteXlsx, EXCEL_STYLE_ERROR_MSG } from "./xlsx.js";
 
 export { buildWorkbookForPreset, getExportPreset } from "./export-presets.js";
 export {
@@ -18,14 +18,14 @@ export function exportProjectWorkbook(project) {
  * @param {{ preset?: string, filename?: string }} [options]
  */
 export function downloadProjectExcel(project, options = {}) {
-  if (!XLSX?.writeFile) {
-    throw new Error("Excel export is not ready yet. Refresh the page and try again.");
+  const xlsx = getWriteXlsx();
+  if (!xlsx?.writeFile) {
+    throw new Error(EXCEL_STYLE_ERROR_MSG);
   }
   const presetId = options.preset || "full";
   const wb = buildWorkbookForPreset(project, presetId);
   const name = options.filename || buildExportFilename(project, presetId);
-  const writeOpts = XLSX.style_version ? { cellStyles: true } : undefined;
-  XLSX.writeFile(wb, `${name}.xlsx`, writeOpts);
+  xlsx.writeFile(wb, `${name}.xlsx`, { cellStyles: true });
 }
 
 /** e.g. Timetable class-test-schedule 2026-06-19 14-30 */

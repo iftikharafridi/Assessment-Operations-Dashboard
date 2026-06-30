@@ -4,7 +4,11 @@ const STYLED_URL = new URL("../../vendor/xlsx-js-style/xlsx.min.js", import.meta
 const CDN_URL = "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
 const LOCAL_URL = new URL("../../vendor/xlsx/xlsx.mjs", import.meta.url).href;
 
+/** @type {typeof import('xlsx') | null} */
 export let XLSX = null;
+
+/** Styled library used for coloured exports — never the plain SheetJS fallback. */
+let writeXlsx = null;
 
 let ready = false;
 let usedSource = null;
@@ -12,12 +16,24 @@ let usedSource = null;
 export const EXCEL_READER_ERROR_MSG =
   "Excel reader could not load. Please check internet connection or use the offline version.";
 
+export const EXCEL_STYLE_ERROR_MSG =
+  "Styled Excel export could not load. Hard-refresh the page (Ctrl+F5) and try again.";
+
 export function isExcelReaderReady() {
   return ready && XLSX != null;
 }
 
+export function isStyledExcelReady() {
+  return Boolean(writeXlsx?.style_version);
+}
+
 export function getExcelReaderSource() {
   return usedSource;
+}
+
+/** Returns the styled XLSX build required for coloured exports. */
+export function getWriteXlsx() {
+  return writeXlsx;
 }
 
 function pickStyledLib() {
@@ -43,25 +59,7 @@ function loadStyledScript() {
   });
 }
 
-export function isStyledExcelReady() {
-  return Boolean(XLSX?.style_version);
-}
-
-export async function initXlsx() {
-  if (ready && XLSX) return XLSX;
-
-  if (typeof document !== "undefined") {
-    try {
-      const styled = pickStyledLib() || (await loadStyledScript());
-      XLSX = styled;
-      ready = true;
-      usedSource = "styled";
-      return XLSX;
-    } catch {
-      /* fall through to SheetJS */
-    }
-  }
-
+async function loadPlainLib() {
   const sources = [
     { label: "cdn", url: CDN_URL },
     { label: "local", url: LOCAL_URL },
@@ -71,17 +69,38 @@ export async function initXlsx() {
   for (const source of sources) {
     try {
       const mod = await import(/* @vite-ignore */ source.url);
-      XLSX = mod.default ?? mod;
-      ready = true;
-      usedSource = source.label;
-      return XLSX;
+      return { lib: mod.default ?? mod, label: source.label };
     } catch (err) {
       lastError = err;
     }
   }
-
-  ready = false;
-  XLSX = null;
-  usedSource = null;
   throw lastError || new Error(EXCEL_READER_ERROR_MSG);
+}
+
+function bindStyledLib(lib) {
+  XLSX = lib;
+  writeXlsx = lib;
+  ready = true;
+  usedSource = "styled";
+  return lib;
+}
+
+export async function initXlsx() {
+  if (ready && XLSX) return XLSX;
+
+  if (typeof document !== "undefined") {
+    try {
+      const styled = pickStyledLib() || (await loadStyledScript());
+      return bindStyledLib(styled);
+    } catch {
+      /* fall through — read-only fallback below */
+    }
+  }
+
+  const { lib, label } = await loadPlainLib();
+  XLSX = lib;
+  writeXlsx = pickStyledLib();
+  ready = true;
+  usedSource = writeXlsx ? "styled" : label;
+  return XLSX;
 }

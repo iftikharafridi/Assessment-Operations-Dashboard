@@ -1,4 +1,4 @@
-import { XLSX } from "./xlsx.js";
+import { getWriteXlsx } from "./xlsx.js";
 import { TIMETABLE_COLUMNS } from "../config/constants.js";
 
 const HEADER_FILL = "1E3A8F";
@@ -42,25 +42,38 @@ const INVIGILATION_FILLS = {
   "Not assigned": "FEF3C7",
 };
 
+function xlsx() {
+  return getWriteXlsx() || globalThis.XLSX || null;
+}
+
+function normalizeArgb(fill) {
+  if (!fill) return null;
+  const hex = String(fill).replace(/^#/, "").toUpperCase();
+  if (hex.length === 6) return `FF${hex}`;
+  if (hex.length === 8) return hex;
+  return null;
+}
+
 function cellStyle({ fill, font = "1E293B", bold = false } = {}) {
+  const argb = normalizeArgb(fill);
   const style = {
-    font: { name: "Calibri", sz: 10, color: { rgb: font }, bold },
+    font: { name: "Calibri", sz: 10, color: { rgb: normalizeArgb(font) || "FF1E293B" }, bold },
     alignment: { vertical: "top", wrapText: true },
   };
-  if (fill) {
-    style.fill = { patternType: "solid", fgColor: { rgb: fill } };
+  if (argb) {
+    style.fill = { patternType: "solid", fgColor: { rgb: argb } };
   }
   return style;
 }
 
 function setCellStyle(sheet, r, c, style) {
-  const ref = XLSX.utils.encode_cell({ r, c });
+  const ref = xlsx().utils.encode_cell({ r, c });
   if (!sheet[ref]) sheet[ref] = { t: "s", v: "" };
   sheet[ref].s = style;
 }
 
 function ensureCell(sheet, r, c) {
-  const ref = XLSX.utils.encode_cell({ r, c });
+  const ref = xlsx().utils.encode_cell({ r, c });
   if (!sheet[ref]) sheet[ref] = { t: "s", v: "" };
   return ref;
 }
@@ -152,13 +165,30 @@ function columnFillForSheet(kind, header, row) {
   return null;
 }
 
+function updateSheetRef(sheet) {
+  const keys = Object.keys(sheet).filter((k) => !k.startsWith("!"));
+  if (!keys.length) return sheet;
+  let minR = Infinity;
+  let minC = Infinity;
+  let maxR = 0;
+  let maxC = 0;
+  for (const key of keys) {
+    const { r, c } = xlsx().utils.decode_cell(key);
+    minR = Math.min(minR, r);
+    minC = Math.min(minC, c);
+    maxR = Math.max(maxR, r);
+    maxC = Math.max(maxC, c);
+  }
+  sheet["!ref"] = xlsx().utils.encode_range({ s: { r: minR, c: minC }, e: { r: maxR, c: maxC } });
+  return sheet;
+}
+
 function applyZebraRows(sheet, rowCount, range, skipRow = () => false) {
   for (let i = 0; i < rowCount; i++) {
     if (i % 2 !== 1 || skipRow(i)) continue;
     const r = range.s.r + 1 + i;
     for (let c = range.s.c; c <= range.e.c; c++) {
-      const ref = XLSX.utils.encode_cell({ r, c });
-      if (!sheet[ref]) continue;
+      ensureCell(sheet, r, c);
       setCellStyle(sheet, r, c, cellStyle({ fill: ZEBRA_FILL }));
     }
   }
@@ -166,7 +196,7 @@ function applyZebraRows(sheet, rowCount, range, skipRow = () => false) {
 
 function applyRowColors(sheet, rows, kind, headers = null) {
   if (!sheet?.["!ref"] || !rows?.length) return sheet;
-  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const range = xlsx().utils.decode_range(sheet["!ref"]);
   styleHeaderRow(sheet, range);
   const colHeaders = headers?.length ? headers : rows[0] ? Object.keys(rows[0]) : [];
 
@@ -189,14 +219,13 @@ function applyRowColors(sheet, rows, kind, headers = null) {
 
 function applySettingsSheetStyle(sheet, rows) {
   if (!sheet?.["!ref"]) return sheet;
-  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const range = xlsx().utils.decode_range(sheet["!ref"]);
   styleHeaderRow(sheet, range);
   for (let i = 0; i < rows.length; i++) {
     const r = range.s.r + 1 + i;
     setCellStyle(sheet, r, range.s.c, cellStyle({ fill: SETTINGS_LABEL_FILL, bold: true }));
     for (let c = range.s.c + 1; c <= range.e.c; c++) {
-      const existing = sheet[XLSX.utils.encode_cell({ r, c })];
-      if (!existing) continue;
+      ensureCell(sheet, r, c);
       setCellStyle(sheet, r, c, cellStyle({ fill: i % 2 === 1 ? ZEBRA_FILL : null }));
     }
   }
@@ -207,12 +236,12 @@ function applySettingsSheetStyle(sheet, rows) {
 export function styleWorksheet(sheet) {
   if (!sheet || !sheet["!ref"]) return sheet;
 
-  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const range = xlsx().utils.decode_range(sheet["!ref"]);
   const colCount = range.e.c - range.s.c + 1;
   sheet["!cols"] = Array.from({ length: colCount }, (_, c) => {
     let max = 10;
     for (let r = range.s.r; r <= range.e.r; r++) {
-      const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+      const cell = sheet[xlsx().utils.encode_cell({ r, c })];
       const len = cell?.v != null ? String(cell.v).length : 0;
       max = Math.max(max, Math.min(len + 2, 48));
     }
@@ -253,23 +282,27 @@ export function uniqueSheetName(wb, desired) {
  * @param {'default'|'timetable'|'plans'|'class-test-schedule'|'invigilation'|'missing-invigilators'|'assessment-events'|'assessment-tracking'|'summary'|'settings'|'auxiliary'|'meta'} sheetKind
  */
 export function appendStyledSheet(wb, rows, sheetName, header, sheetKind = "default") {
+  const lib = xlsx();
+  if (!lib?.utils) throw new Error("Styled Excel export is not ready.");
+
   const safeRows = rows?.length ? rows : [{ Note: "No rows to export." }];
-  const sheet = XLSX.utils.json_to_sheet(safeRows, header?.length ? { header } : undefined);
+  const sheet = lib.utils.json_to_sheet(safeRows, header?.length ? { header } : undefined);
   styleWorksheet(sheet);
 
   if (sheetKind === "settings") {
     applySettingsSheetStyle(sheet, safeRows);
   } else if (sheetKind === "meta") {
-    styleHeaderRow(sheet, XLSX.utils.decode_range(sheet["!ref"]));
+    styleHeaderRow(sheet, lib.utils.decode_range(sheet["!ref"]));
   } else if (COLORED_KINDS.has(sheetKind)) {
     applyRowColors(sheet, safeRows, sheetKind, header?.length ? header : null);
   } else {
-    const range = XLSX.utils.decode_range(sheet["!ref"]);
+    const range = lib.utils.decode_range(sheet["!ref"]);
     styleHeaderRow(sheet, range);
     applyZebraRows(sheet, safeRows.length, range);
   }
 
-  XLSX.utils.book_append_sheet(wb, sheet, uniqueSheetName(wb, sheetName));
+  updateSheetRef(sheet);
+  lib.utils.book_append_sheet(wb, sheet, uniqueSheetName(wb, sheetName));
 }
 
 export function formatExportTimestamp() {
