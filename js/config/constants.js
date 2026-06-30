@@ -1,6 +1,6 @@
 /** @typedef {'timetable'|'staff'|'rooms'|'assessmentSchedule'|'unknown'} FileType */
 
-export const APP_VERSION = "1.3.4";
+export const APP_VERSION = "1.3.5";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
