@@ -1,5 +1,7 @@
 import { assignSessionIds, sessionKey } from "../utils/session-id.js";
 import { seminarLookupKey } from "../utils/seminar-match.js";
+import { dedupeAssessmentEvents, eventToRow } from "../excel/assessment-parser.js";
+import { fillMissingTestWeeksFromSchedule } from "../analytics/assessment.js";
 
 /** Combine duplicate plan records that map to the same seminar (stable ID + legacy Session ID). */
 function mergeMatchedPlans(existing, incoming) {
@@ -54,6 +56,15 @@ export function finalizeProject(project) {
   }
 
   project.plans = newPlans;
+
+  for (const ds of project.datasets.assessmentSchedule || []) {
+    if (!ds.events?.length) continue;
+    ds.events = dedupeAssessmentEvents(ds.events, { semesterStart: project.getSemesterStartDate() });
+    ds.rows = ds.events.map(eventToRow);
+  }
+
+  const filledWeeks = fillMissingTestWeeksFromSchedule(project, { notify: false });
+  if (filledWeeks) project._testWeeksFilled = filledWeeks;
 
   if (project._scheduleInvigilators) {
     let scheduleRestored = 0;

@@ -69,6 +69,9 @@ export function classifyAssessmentType(text) {
   if (/set exercise/i.test(t) && /lab|during week \d+/i.test(t)) {
     return "classTest";
   }
+  if (/set exercise/i.test(t) && !/\bdue:\s*(?:\d{1,2}(?:st|nd|rd|th)?\s+\w+|\d{4})/i.test(t)) {
+    return "classTest";
+  }
   if (/presentation|viva|oral examination|oral exam/i.test(t)) {
     return "presentation";
   }
@@ -82,6 +85,9 @@ export function classifyAssessmentType(text) {
 export function suggestsClassTest(type, text) {
   if (type === "classTest") return true;
   const t = String(text ?? "").toLowerCase();
+  if (/set exercise/i.test(t) && !/\bdue:\s*(?:\d{1,2}(?:st|nd|rd|th)?\s+\w+|\d{4})/i.test(t)) {
+    return true;
+  }
   return /during week \d+ lab|week \d+ lab classes|practical skills assessment/i.test(t);
 }
 
@@ -279,14 +285,77 @@ export function parseAssessmentGrid(grid, sheetName = "") {
   );
 }
 
+/** One row per module + week + assessment code — prefer the cohort that matches the teaching semester. */
+export function dedupeAssessmentEvents(events, { semesterStart = "" } = {}) {
+  if (!events?.length) return [];
+
+  const startYear = semesterStart ? Number(String(semesterStart).slice(0, 4)) : null;
+  const byKey = new Map();
+
+  for (const event of events) {
+    const key = assessmentEventKey(event);
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? pickPreferredAssessmentEvent(existing, event, startYear) : event);
+  }
+
+  return [...byKey.values()]
+    .map((event) => ({ ...event, id: canonicalAssessmentEventId(event) }))
+    .sort(
+      (a, b) =>
+        a.moduleCode.localeCompare(b.moduleCode) ||
+        a.weekNumber - b.weekNumber ||
+        a.assessmentCode.localeCompare(b.assessmentCode)
+    );
+}
+
+export function assessmentEventKey(event) {
+  const code = String(event.moduleCode ?? "").trim().toUpperCase();
+  const week = String(event.weekLabel ?? "").trim() || (event.weekNumber ? `Week ${event.weekNumber}` : "");
+  const assessment = String(event.assessmentCode ?? "").trim().toUpperCase() || extractAssessmentCode(event.title);
+  return `${code}|${week}|${assessment}`;
+}
+
+export function canonicalAssessmentEventId(event) {
+  return `${assessmentEventKey(event)}|Assessment Events`;
+}
+
+function scoreAssessmentEvent(event, startYear) {
+  let score = 0;
+  const dueYear = event.dueDate ? Number(String(event.dueDate).slice(0, 4)) : 0;
+  const weekYear = event.weekCommencing ? Number(String(event.weekCommencing).slice(0, 4)) : 0;
+
+  if (startYear) {
+    if (dueYear === startYear) score += 12;
+    else if (dueYear && dueYear < startYear - 1) score -= 15;
+    else if (dueYear && dueYear < startYear) score -= 8;
+    if (weekYear === startYear) score += 6;
+  }
+
+  const sheet = String(event.sheetName ?? "");
+  if (/S2|S3/i.test(sheet)) score += 5;
+  if (/^"?S1"?/i.test(sheet) && !/S2|S3/i.test(sheet)) score -= 4;
+
+  if (event.dueDate) score += 2;
+  if (String(event.rawText ?? "").length > 40) score += 1;
+  if (event.suggestsClassTest) score += 1;
+  return score;
+}
+
+function pickPreferredAssessmentEvent(a, b, startYear) {
+  const sa = scoreAssessmentEvent(a, startYear);
+  const sb = scoreAssessmentEvent(b, startYear);
+  if (sb !== sa) return sb > sa ? b : a;
+  return String(b.rawText ?? "").length >= String(a.rawText ?? "").length ? b : a;
+}
+
 /**
  * @param {import('./xlsx.js').XLSX} XLSX
  * @param {object} sheet
  * @param {string} sheetName
  */
-export function parseAssessmentSheet(XLSX, sheet, sheetName) {
+export function parseAssessmentSheet(XLSX, sheet, sheetName, options = {}) {
   const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
-  const events = parseAssessmentGrid(grid, sheetName);
+  const events = dedupeAssessmentEvents(parseAssessmentGrid(grid, sheetName), options);
   return {
     events,
     rows: events.map(eventToRow),
@@ -322,7 +391,7 @@ function truthyExport(value) {
 }
 
 /** Restore assessment events from Assessment Events sheet or exported module sheets. */
-export function parseAssessmentEventsFromExportRows(rows, sheetName = "") {
+export function parseAssessmentEventsFromExportRows(rows, sheetName = "", options = {}) {
   const events = [];
   for (const row of rows) {
     const moduleCode = String(row["Module code"] ?? "").trim().toUpperCase();
@@ -365,9 +434,10 @@ export function parseAssessmentEventsFromExportRows(rows, sheetName = "") {
     events.push(event);
   }
 
+  const deduped = dedupeAssessmentEvents(events, options);
   return {
-    events,
-    rows: events.map(eventToRow),
+    events: deduped,
+    rows: deduped.map(eventToRow),
     headers: ASSESSMENT_EXPORT_COLUMNS,
   };
 }

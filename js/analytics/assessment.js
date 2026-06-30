@@ -87,6 +87,38 @@ export function applyAssessmentToPlans(project, { moduleCode = null } = {}) {
   return results;
 }
 
+/** Fill test week/date on planned seminars that are missing schedule data. */
+export function fillMissingTestWeeksFromSchedule(project, { notify = false } = {}) {
+  const events = project.getAssessmentEvents();
+  if (!events.length) return 0;
+
+  let filled = 0;
+  for (const seminar of project.getTimetableRows().filter((r) => r.Type === "Seminar")) {
+    const sid = planKey(seminar);
+    const plan = normalizePlan(project.getPlan(sid));
+    if (!plan.planned || plan.testWeek) continue;
+
+    const primary = primaryClassTestEvent(events, seminar["Module code"]);
+    if (!primary) continue;
+
+    const scheduleNote = `From assessment schedule (${primary.weekLabel}): ${primary.rawText.split("\n").slice(0, 3).join(" · ")}`;
+    const notes = plan.notes?.includes(primary.weekLabel) ? plan.notes : [plan.notes, scheduleNote].filter(Boolean).join("\n");
+
+    updatePlan(
+      project,
+      sid,
+      {
+        testWeek: primary.weekLabel,
+        testDate: computeClassTestDateForSeminar(primary, seminar),
+        notes,
+      },
+      { notify }
+    );
+    filled++;
+  }
+  return filled;
+}
+
 export function buildAssessmentSummary(events) {
   const modules = unique(events.map((e) => e.moduleCode)).sort();
   const classTests = getClassTestCandidates(events).length;

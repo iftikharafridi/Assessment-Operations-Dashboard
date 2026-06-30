@@ -19,9 +19,11 @@ import {
   isNormalizedAssessmentExport,
   isDuplicateAssessmentExportSheet,
   isRedundantAssessmentExportSheet,
+  dedupeAssessmentEvents,
+  eventToRow,
   ASSESSMENT_EXPORT_COLUMNS,
 } from "./assessment-parser.js";
-import { parseAssessmentTrackingFromSheet, normalizeSemesterStartDate } from "../analytics/assessment.js";
+import { parseAssessmentTrackingFromSheet, normalizeSemesterStartDate, fillMissingTestWeeksFromSchedule } from "../analytics/assessment.js";
 import { parseDashboardSettingsFromRows } from "./dashboard-settings.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
 import { seminarLookupKey } from "../utils/seminar-match.js";
@@ -134,6 +136,41 @@ export function parseMetaFromSheet(sheet) {
   }
 }
 
+function assessmentDedupeOptions(project) {
+  return { semesterStart: project.getSemesterStartDate() || "" };
+}
+
+function upsertAssessmentSchedule(project, filename, sheetName, events, rows, headers = ASSESSMENT_EXPORT_COLUMNS) {
+  const merged = dedupeAssessmentEvents(
+    [...project.getAssessmentEvents(), ...events],
+    assessmentDedupeOptions(project)
+  );
+  const payload = {
+    rows: merged.map(eventToRow),
+    headers,
+    events: merged,
+  };
+
+  const existing = project.datasets.assessmentSchedule[0];
+  if (existing) {
+    Object.assign(existing, payload);
+    if (!String(existing.sheetName).includes(sheetName)) {
+      existing.sheetName = `${existing.sheetName} + ${sheetName}`;
+    }
+    project.touch();
+    return merged;
+  }
+
+  project.addDataset("assessmentSchedule", {
+    filename,
+    fileType: "assessmentSchedule",
+    sheetName,
+    uploadedAt: new Date().toISOString(),
+    ...payload,
+  });
+  return merged;
+}
+
 export function ingestWorkbooks(files) {
   const project = createEmptyProject(deriveProjectName(files));
   const warnings = [];
@@ -151,20 +188,21 @@ export function ingestWorkbooks(files) {
     const assessmentEventsSheet = workbook.Sheets[REPORT_ASSESSMENT_EVENTS];
     if (assessmentEventsSheet) {
       const exportRows = sheetToRows(assessmentEventsSheet);
-      const parsed = parseAssessmentEventsFromExportRows(exportRows, REPORT_ASSESSMENT_EVENTS);
+      const parsed = parseAssessmentEventsFromExportRows(
+        exportRows,
+        REPORT_ASSESSMENT_EVENTS,
+        assessmentDedupeOptions(project)
+      );
       if (parsed.events.length) {
-        project.addDataset("assessmentSchedule", {
+        const merged = upsertAssessmentSchedule(
+          project,
           filename,
-          fileType: "assessmentSchedule",
-          sheetName: REPORT_ASSESSMENT_EVENTS,
-          rows: parsed.rows,
-          headers: parsed.headers,
-          events: parsed.events,
-          uploadedAt: new Date().toISOString(),
-        });
-        warnings.push(
-          `Restored ${parsed.events.length} assessment items from saved "${REPORT_ASSESSMENT_EVENTS}" sheet.`
+          REPORT_ASSESSMENT_EVENTS,
+          parsed.events,
+          parsed.rows,
+          parsed.headers
         );
+        warnings.push(`Restored ${merged.length} assessment items from saved "${REPORT_ASSESSMENT_EVENTS}" sheet.`);
       }
     }
 
@@ -215,21 +253,18 @@ export function ingestWorkbooks(files) {
 
       if (isNormalizedAssessmentExport(headers)) {
         const exportRows = sheetToRows(sheet);
-        const parsed = parseAssessmentEventsFromExportRows(exportRows, sheetName);
+        const parsed = parseAssessmentEventsFromExportRows(exportRows, sheetName, assessmentDedupeOptions(project));
         if (parsed.events.length && !project.getAssessmentEvents().length) {
-          project.addDataset("assessmentSchedule", {
+          const merged = upsertAssessmentSchedule(
+            project,
             filename,
-            fileType: "assessmentSchedule",
             sheetName,
-            rows: parsed.rows,
-            headers: parsed.headers,
-            events: parsed.events,
-            uploadedAt: new Date().toISOString(),
-          });
-          fileLoaded = true;
-          warnings.push(
-            `Assessment schedule loaded from "${filename}" (${sheetName}): ${parsed.events.length} items.`
+            parsed.events,
+            parsed.rows,
+            parsed.headers
           );
+          fileLoaded = true;
+          warnings.push(`Assessment schedule loaded from "${filename}" (${sheetName}): ${merged.length} items.`);
         }
         continue;
       }
@@ -249,15 +284,21 @@ export function ingestWorkbooks(files) {
           continue;
         }
       } else if (fileType === "assessmentSchedule") {
-        const parsed = parseAssessmentSheet(XLSX, sheet, sheetName);
-        events = parsed.events;
-        rows = parsed.rows;
-        headers = ASSESSMENT_EXPORT_COLUMNS;
-        if (!events.length) continue;
-        if (project.getAssessmentEvents().length) continue;
-        warnings.push(
-          `Assessment schedule loaded from "${filename}" (${sheetName}): ${events.length} items across ${new Set(events.map((e) => e.moduleCode)).size} modules.`
+        const parsed = parseAssessmentSheet(XLSX, sheet, sheetName, assessmentDedupeOptions(project));
+        if (!parsed.events.length) continue;
+        const merged = upsertAssessmentSchedule(
+          project,
+          filename,
+          sheetName,
+          parsed.events,
+          parsed.rows,
+          parsed.headers
         );
+        warnings.push(
+          `Assessment schedule loaded from "${filename}" (${sheetName}): ${merged.length} items across ${new Set(merged.map((e) => e.moduleCode)).size} modules.`
+        );
+        fileLoaded = true;
+        continue;
       }
 
       project.addDataset(fileType, {
@@ -317,6 +358,13 @@ function appendInvigilatorWarnings(project) {
   if (project._semesterStartRestored) {
     warnings.push(`Restored semester start date (${project._semesterStartRestored}) from your saved workbook.`);
     delete project._semesterStartRestored;
+  }
+
+  if (project._testWeeksFilled) {
+    warnings.push(
+      `Filled test week/date for ${project._testWeeksFilled} planned class test${project._testWeeksFilled === 1 ? "" : "s"} from the assessment schedule.`
+    );
+    delete project._testWeeksFilled;
   }
 
   const seminars = project.getTimetableRows().filter((r) => r.Type === "Seminar");
