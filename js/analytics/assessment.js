@@ -202,6 +202,22 @@ export function formatIsoDate(date) {
   return `${y}-${m}-${d}`;
 }
 
+/** Normalize Excel / typed dates to yyyy-mm-dd for the semester start field. */
+export function normalizeSemesterStartDate(value) {
+  if (value == null || value === "") return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return formatIsoDate(value);
+  const s = String(value).trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const uk = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if (uk) {
+    const year = uk[3].length === 2 ? 2000 + Number(uk[3]) : Number(uk[3]);
+    return `${year}-${String(uk[2]).padStart(2, "0")}-${String(uk[1]).padStart(2, "0")}`;
+  }
+  const parsed = parseIsoDate(s);
+  return parsed ? formatIsoDate(parsed) : s;
+}
+
 export function addWeeksToIso(isoStart, weeksAfter) {
   const start = parseIsoDate(isoStart);
   if (!start) return "";
@@ -221,7 +237,7 @@ export function inferSemesterStart(events) {
 }
 
 export function resolveSemesterStart(project, events) {
-  const stored = project.getSemesterStartDate?.() || "";
+  const stored = normalizeSemesterStartDate(project.getSemesterStartDate?.() || "");
   if (stored) return stored;
   return inferSemesterStart(events);
 }
@@ -325,7 +341,7 @@ export function buildAssessmentTimeline(events, options = {}) {
 
 export function buildAssessmentTrackingExportRows(project) {
   const events = project.getAssessmentEvents();
-  const semesterStart = resolveSemesterStart(project, events);
+  const semesterStart = project.getSemesterStartDate() || resolveSemesterStart(project, events);
   return events.map((event) => {
     const record = project.getAssessmentRecord(event.id);
     return {
@@ -350,9 +366,11 @@ export function parseAssessmentTrackingFromSheet(rows) {
   const records = {};
   let semesterStartDate = "";
   for (const row of rows) {
+    if (row["Semester start"]) {
+      semesterStartDate = normalizeSemesterStartDate(row["Semester start"]);
+    }
     const id = String(row["Event ID"] ?? "").trim();
-    if (!id) continue;
-    if (row["Semester start"]) semesterStartDate = String(row["Semester start"]).trim();
+    if (!id || id === "_settings") continue;
     records[id] = {
       status: row.Status || "Not started",
       tasks: row.Tasks ?? "",

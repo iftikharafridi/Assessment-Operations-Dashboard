@@ -1,5 +1,5 @@
 import { DEFAULT_PLAN, PLAN_STATUSES } from "../config/constants.js";
-import { markDirty } from "../state/store.js";
+import { markDirty, setDirtySilent } from "../state/store.js";
 import { addMinutes, formatTimeRange, isValidTime } from "../utils/time.js";
 import { sessionKey } from "../utils/session-id.js";
 
@@ -55,7 +55,7 @@ export function syncPlanTimes(plan) {
   }
 }
 
-export function updatePlan(project, sessionId, partial) {
+export function updatePlan(project, sessionId, partial, { notify = true } = {}) {
   const current = normalizePlan(project.getPlan(sessionId));
   const merged = { ...current, ...partial };
   if (partial.roomConfirmed != null) merged.roomConfirmed = truthy(partial.roomConfirmed);
@@ -63,7 +63,8 @@ export function updatePlan(project, sessionId, partial) {
   if (partial.lodReady != null) merged.lodReady = truthy(partial.lodReady);
   syncPlanTimes(merged);
   project.setPlan(sessionId, normalizePlan(merged));
-  markDirty();
+  if (notify) markDirty();
+  else setDirtySilent();
 }
 
 export function markAsClassTest(project, sessionId, sessionStaff = "", session = null) {

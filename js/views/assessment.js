@@ -16,6 +16,7 @@ import {
 import { renderAssessmentTimeline, renderUpcomingList } from "../components/assessment-timeline.js";
 import { confirmAction } from "../components/dialog.js";
 import { markDirty } from "../state/store.js";
+import { displayAssessValue } from "../ui/inline-edit.js";
 
 function typeBadge(type) {
   const classes = {
@@ -82,8 +83,8 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
         <td>${esc(event.assessmentCode || "—")}<br>${typeBadge(event.assessmentType)}</td>
         <td>${esc(due || "—")}<br><span class="muted small">${esc(event.dueText || "").slice(0, 80)}</span></td>
         <td><select class="assess-status" data-id="${esc(event.id)}">${statusOptions(record.status)}</select></td>
-        <td><textarea class="assess-tasks" data-id="${esc(event.id)}" rows="2" placeholder="To-do: e.g. Prepare paper, book room…">${esc(record.tasks)}</textarea></td>
-        <td><textarea class="assess-notes" data-id="${esc(event.id)}" rows="2" placeholder="Updates: how it went, issues…">${esc(record.notes)}</textarea></td>
+        <td><textarea class="assess-tasks" data-id="${esc(event.id)}" rows="2" placeholder="To-do: e.g. Prepare paper, book room…">${esc(displayAssessValue(event.id, "tasks", record))}</textarea></td>
+        <td><textarea class="assess-notes" data-id="${esc(event.id)}" rows="2" placeholder="Updates: how it went, issues…">${esc(displayAssessValue(event.id, "notes", record))}</textarea></td>
       </tr>`;
     })
     .join("");
@@ -110,7 +111,7 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
     : `<span class="muted">Set semester start date below to calculate the current teaching week.</span>`;
 
   container.innerHTML =
-    intro("Semester timeline, coursework deadlines, tasks and notes. Apply class test weeks to the Class tests tab.") +
+    intro("Semester timeline, coursework deadlines, tasks and notes. Set the semester start date below — it is saved when you click <strong>Save workbook</strong>. Apply class test weeks to the Class tests tab.") +
     `<section class="assessment-hub-panel">
       <h3 class="section-heading">Semester position</h3>
       <div class="semester-bar">
@@ -161,24 +162,15 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
     onUpdate();
   });
 
-  bindTrackingFields(container, project, onUpdate);
+  bindTrackingFields(container, project);
   bindApplyButtons(container, project, filters, onUpdate);
 }
 
-function bindTrackingFields(container, project, onUpdate) {
-  const save = (id, partial) => {
-    project.setAssessmentRecord(id, partial);
-    markDirty();
-  };
-
+function bindTrackingFields(container, project) {
   container.querySelectorAll(".assess-status").forEach((el) => {
-    el.addEventListener("change", () => save(el.dataset.id, { status: el.value }));
-  });
-
-  container.querySelectorAll(".assess-tasks, .assess-notes").forEach((el) => {
-    el.addEventListener("blur", () => {
-      const partial = el.classList.contains("assess-tasks") ? { tasks: el.value } : { notes: el.value };
-      save(el.dataset.id, partial);
+    el.addEventListener("change", () => {
+      project.setAssessmentRecord(el.dataset.id, { status: el.value });
+      markDirty();
     });
   });
 }

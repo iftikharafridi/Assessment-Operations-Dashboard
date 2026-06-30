@@ -7,6 +7,7 @@ import {
   META_SHEET,
   PLAN_SHEET,
   ASSESSMENT_TRACKING_SHEET,
+  DASHBOARD_SETTINGS_SHEET,
   REPORT_ASSESSMENT_EVENTS,
   REPORT_CLASS_TEST_SCHEDULE,
 } from "../config/constants.js";
@@ -17,9 +18,11 @@ import {
   parseAssessmentEventsFromExportRows,
   isNormalizedAssessmentExport,
   isDuplicateAssessmentExportSheet,
+  isRedundantAssessmentExportSheet,
   ASSESSMENT_EXPORT_COLUMNS,
 } from "./assessment-parser.js";
-import { parseAssessmentTrackingFromSheet } from "../analytics/assessment.js";
+import { parseAssessmentTrackingFromSheet, normalizeSemesterStartDate } from "../analytics/assessment.js";
+import { parseDashboardSettingsFromRows } from "./dashboard-settings.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
 import { seminarLookupKey } from "../utils/seminar-match.js";
 
@@ -182,10 +185,20 @@ export function ingestWorkbooks(files) {
         if (meta.assessmentTracking) {
           project.assessmentTracking = {
             semesterStartDate:
-              meta.assessmentTracking.semesterStartDate || project.assessmentTracking.semesterStartDate,
+              normalizeSemesterStartDate(meta.assessmentTracking.semesterStartDate) ||
+              project.assessmentTracking.semesterStartDate,
             records: { ...meta.assessmentTracking.records, ...project.assessmentTracking.records },
           };
         }
+      }
+    }
+
+    const settingsSheet = workbook.Sheets[DASHBOARD_SETTINGS_SHEET];
+    if (settingsSheet) {
+      const settings = parseDashboardSettingsFromRows(sheetToRows(settingsSheet));
+      if (settings.semesterStartDate) {
+        project.assessmentTracking.semesterStartDate = settings.semesterStartDate;
+        project._semesterStartRestored = settings.semesterStartDate;
       }
     }
 
@@ -194,6 +207,7 @@ export function ingestWorkbooks(files) {
     for (const sheetName of workbook.SheetNames) {
       if (GENERATED_SHEETS.has(sheetName)) continue;
       if (isDuplicateAssessmentExportSheet(sheetName)) continue;
+      if (isRedundantAssessmentExportSheet(sheetName)) continue;
       if (sheetName === REPORT_ASSESSMENT_EVENTS && project.getAssessmentEvents().length) continue;
 
       const sheet = workbook.Sheets[sheetName];
@@ -299,6 +313,11 @@ function appendInvigilatorWarnings(project) {
     );
   }
   delete project._invigilatorsRestored;
+
+  if (project._semesterStartRestored) {
+    warnings.push(`Restored semester start date (${project._semesterStartRestored}) from your saved workbook.`);
+    delete project._semesterStartRestored;
+  }
 
   const seminars = project.getTimetableRows().filter((r) => r.Type === "Seminar");
   const planned = seminars.filter((s) => normalizePlan(project.getPlan(planKey(s))).planned);

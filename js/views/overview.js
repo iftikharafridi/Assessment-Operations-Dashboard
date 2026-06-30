@@ -7,7 +7,7 @@ import { renderValidationSection } from "./validation.js";
 import { renderModuleSummarySection } from "./summary.js";
 
 export function renderOverviewView({ project, rows, container, state, onCalendarLayoutChange }) {
-  const layout = state?.calendarLayout || "time-side";
+  const layout = state?.calendarLayout || "day-side";
 
   container.innerHTML =
     intro("At-a-glance summary and weekly timetable. Open <strong>Issues &amp; to-do</strong> for conflicts and action items.") +

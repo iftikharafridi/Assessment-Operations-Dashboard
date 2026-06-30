@@ -15,6 +15,7 @@ import { ingestWorkbooks, readWorkbook } from "./excel/reader.js";
 import { finalizeProject } from "./model/finalize.js";
 import { downloadProjectExcel } from "./excel/writer.js";
 import { isExcelReaderReady } from "./excel/xlsx.js";
+import { renderExportMenu, bindExportMenu } from "./components/export-menu.js";
 import { loadSampleTimetable } from "./data/sample-loader.js";
 import { renderFiltersPanel, applyFiltersToDom, bindFilterEvents, readFiltersFromDom } from "./components/filters.js";
 import { renderTabs, bindTabs, normalizeTabId } from "./components/tabs.js";
@@ -28,6 +29,13 @@ import { renderAssessmentView } from "./views/assessment.js";
 import { renderIssuesView, countOpenIssues } from "./views/issues.js";
 import { APP_VERSION } from "./config/constants.js";
 import { clearChildren, unique } from "./utils/dom.js";
+import {
+  setRenderFlushHandler,
+  shouldDeferShellRender,
+  resumeShellRender,
+  isShellRenderPaused,
+} from "./ui/render-guard.js";
+import { bindInlineFieldEditing } from "./ui/inline-edit.js";
 
 const filtersEl = () => document.getElementById("filters");
 const tabsEl = () => document.getElementById("tabs");
@@ -42,6 +50,24 @@ function requireExcelReader() {
   const alerts = alertsEl();
   if (alerts) alerts.innerHTML = renderExcelReaderError();
   return false;
+}
+
+function safeDownloadExcel(project, options = {}) {
+  if (!requireExcelReader()) return false;
+  try {
+    downloadProjectExcel(project, options);
+    return true;
+  } catch (err) {
+    console.error("Export failed:", err);
+    if (alertsEl()) {
+      alertsEl().innerHTML = `<div class="alert alert-error" role="alert">
+        <strong>Could not export workbook</strong>
+        <p>${err?.message || "Something went wrong while building the Excel file."}</p>
+        <p class="muted">Try refreshing the page. If the problem continues, save a partial export from the Export menu.</p>
+      </div>`;
+    }
+    return false;
+  }
 }
 
 async function loadFiles(fileList, merge = false) {
@@ -96,7 +122,18 @@ function renderAlerts(project) {
   return parts.join("");
 }
 
+function updateDirtyBadge() {
+  const state = getState();
+  const project = state.project;
+  if (projectInfoEl()) {
+    projectInfoEl().innerHTML = project
+      ? `<span class="project-name">${project.name}</span>${state.dirty ? '<span class="dirty-badge">Unsaved changes</span>' : ""}`
+      : "";
+  }
+}
+
 function renderShell() {
+  if (shouldDeferShellRender()) return;
   const state = getState();
   const project = state.project;
   const hasData = project?.getTimetableRows().length;
@@ -104,25 +141,26 @@ function renderShell() {
   if (headerActionsEl()) {
     const helpBtn = renderUserGuideButton();
     headerActionsEl().innerHTML = hasData
-      ? `${helpBtn}
-         <button class="btn" id="add-files-btn">Add another file</button>
-         <button class="btn btn-primary" id="save-excel-btn">Save workbook</button>
+      ? `${helpBtn}${renderExportMenu(project)}<button class="btn" id="add-files-btn">Add another file</button>
          <input type="file" id="add-file-input" accept=".xlsx,.xls" multiple hidden>`
       : helpBtn;
     bindUserGuide();
+    if (hasData) {
+      bindExportMenu({
+        project,
+        onExport: (presetId) => {
+          safeDownloadExcel(project, { preset: presetId });
+        },
+        onSave: () => {
+          if (safeDownloadExcel(project, { preset: "full" })) emit({ dirty: false });
+        },
+      });
+    }
     document.getElementById("add-files-btn")?.addEventListener("click", () => {
       document.getElementById("add-file-input")?.click();
     });
     document.getElementById("add-file-input")?.addEventListener("change", (e) => {
       if (e.target.files?.length) loadFiles(e.target.files, true);
-    });
-    document.getElementById("save-excel-btn")?.addEventListener("click", () => {
-      if (project && isExcelReaderReady()) {
-        downloadProjectExcel(project);
-        emit({ dirty: false });
-      } else {
-        requireExcelReader();
-      }
     });
   }
 
@@ -166,6 +204,7 @@ function renderShell() {
 }
 
 function renderMain() {
+  if (shouldDeferShellRender()) return;
   const state = getState();
   const project = state.project;
   const main = mainEl();
@@ -193,26 +232,25 @@ function renderMain() {
     container: main,
     state,
     onUpdate: (full = true, kind) => {
-      if (kind === "showAll") setTrackerShowAll(full);
-      if (full !== false) renderShell();
-      else emit({});
+      if (kind === "showAll") {
+        setTrackerShowAll(full);
+        return;
+      }
+      if (full === false) {
+        updateDirtyBadge();
+        return;
+      }
+      renderShell();
     },
     onClear: () => renderShell(),
     onExport: () => {
-      if (isExcelReaderReady()) {
-        downloadProjectExcel(project);
-        emit({ dirty: false });
-      } else {
-        requireExcelReader();
-      }
+      if (safeDownloadExcel(project, { preset: "full" })) emit({ dirty: false });
     },
     onInvigChange: (campus, day) => {
       setInvigilation(campus, day);
-      renderMain();
     },
     onCalendarLayoutChange: (layout) => {
       setCalendarLayout(layout);
-      renderMain();
     },
   };
 
@@ -251,8 +289,16 @@ function renderMain() {
 }
 
 export function initApp({ excelReaderReady = true } = {}) {
+  setRenderFlushHandler(() => renderShell());
+  bindInlineFieldEditing({
+    getProject: () => getState().project,
+    onDirty: updateDirtyBadge,
+  });
   emit({ excelReaderReady });
-  subscribe(() => renderShell());
+  subscribe(() => {
+    if (!isShellRenderPaused()) renderShell();
+    else shouldDeferShellRender();
+  });
   renderShell();
 
   document.body.addEventListener("dragover", (e) => e.preventDefault());

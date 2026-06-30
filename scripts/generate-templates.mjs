@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import XLSX from "../vendor/xlsx/xlsx.mjs";
+import XLSX from "../vendor/xlsx-js-style/node.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const templatesDir = path.join(root, "templates");

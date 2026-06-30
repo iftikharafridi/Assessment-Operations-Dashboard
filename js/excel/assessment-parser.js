@@ -374,7 +374,25 @@ export function parseAssessmentEventsFromExportRows(rows, sheetName = "") {
 
 /** Skip duplicate assessment copies created when saving a workbook. */
 export function isDuplicateAssessmentExportSheet(sheetName) {
-  return /modules\s*\(\d{4}-/i.test(sheetName) || /modules\s*\([^)]+\)$/i.test(sheetName);
+  return isAssessmentMatrixSheetName(sheetName);
+}
+
+/** QAHE matrix tabs and renamed copies — not needed in saved workbooks. */
+export function isAssessmentMatrixSheetName(sheetName) {
+  const n = String(sheetName ?? "").trim();
+  if (!n) return false;
+  if (/modules\s*\(/i.test(n)) return true;
+  if (/^"S\d/i.test(n) && /modules/i.test(n)) return true;
+  if (/^S\d/i.test(n) && /modules/i.test(n)) return true;
+  return false;
+}
+
+/** Prior-save assessment copies (keep canonical Assessment Events only). */
+export function isRedundantAssessmentExportSheet(sheetName) {
+  const n = String(sheetName ?? "").trim();
+  if (n === "Assessment Events") return false;
+  if (/^Assessment Events\s*\(/i.test(n)) return true;
+  return isAssessmentMatrixSheetName(n);
 }
 
 export const ASSESSMENT_EXPORT_COLUMNS = [

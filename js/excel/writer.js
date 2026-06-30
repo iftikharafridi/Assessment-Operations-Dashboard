@@ -1,109 +1,35 @@
-import {
-  GENERATED_SHEETS,
-  META_SHEET,
-  PLAN_COLUMNS,
-  PLAN_SHEET,
-  REPORT_ASSESSMENT_EVENTS,
-  ASSESSMENT_TRACKING_SHEET,
-} from "../config/constants.js";
-import { eventToRow } from "./assessment-parser.js";
-import { buildAssessmentTrackingExportRows } from "../analytics/assessment.js";
-import { formatTimeRange } from "../utils/time.js";
-import { normalizePlan, planKey } from "../planner/plans.js";
-import { appendStyledSheet, formatExportTimestamp } from "./sheet-style.js";
+import { buildWorkbookForPreset, getExportPreset } from "./export-presets.js";
 import { XLSX } from "./xlsx.js";
 
+export { buildWorkbookForPreset, getExportPreset } from "./export-presets.js";
+export {
+  buildPlanExportRows,
+  buildWeeklyTimetableRows,
+  flattenRowForExport,
+} from "./workbook-builders.js";
+
+/** @deprecated Use buildWorkbookForPreset(project, 'full') */
 export function exportProjectWorkbook(project) {
-  const wb = XLSX.utils.book_new();
-  const primary = project.datasets.timetable[0];
-  const exportedAt = formatExportTimestamp();
+  return buildWorkbookForPreset(project, "full");
+}
 
-  if (primary?.workbook) {
-    for (const sheetName of primary.workbook.SheetNames) {
-      if (GENERATED_SHEETS.has(sheetName)) continue;
-      XLSX.utils.book_append_sheet(wb, primary.workbook.Sheets[sheetName], sheetName);
-    }
-  } else if (primary?.rows?.length) {
-    const exportRows = primary.rows.map(flattenRowForExport);
-    const sheet = XLSX.utils.json_to_sheet(exportRows);
-    XLSX.utils.book_append_sheet(wb, sheet, primary.sheetName || "Timetable");
+/**
+ * @param {import('../model/project.js').Project} project
+ * @param {{ preset?: string, filename?: string }} [options]
+ */
+export function downloadProjectExcel(project, options = {}) {
+  if (!XLSX?.writeFile) {
+    throw new Error("Excel export is not ready yet. Refresh the page and try again.");
   }
-
-  appendAuxiliarySheets(project, wb, primary?.workbook?.SheetNames || []);
-
-  appendStyledSheet(wb, buildPlanExportRows(project), PLAN_SHEET, PLAN_COLUMNS);
-  if (project.getAssessmentEvents?.().length) {
-    appendStyledSheet(
-      wb,
-      project.getAssessmentEvents().map(eventToRow),
-      REPORT_ASSESSMENT_EVENTS
-    );
-    appendStyledSheet(wb, buildAssessmentTrackingExportRows(project), ASSESSMENT_TRACKING_SHEET);
-  }
-  appendStyledSheet(wb, [{ payload: JSON.stringify({ ...project.toMeta(), exportedAt }) }], META_SHEET);
-
-  return wb;
-}
-
-function flattenRowForExport(row) {
-  const { _extra, _sourceFile, _sourceId, sessionId, ...canonical } = row;
-  return { ...canonical, ...(_extra || {}), "Stable session ID": sessionId };
-}
-
-function appendAuxiliarySheets(project, wb, skipSheets) {
-  const skip = new Set([...skipSheets, ...GENERATED_SHEETS]);
-  for (const type of ["staff", "rooms", "assessmentSchedule"]) {
-    for (const ds of project.datasets[type] || []) {
-      if (!ds.rows?.length) continue;
-      let sheetName = ds.sheetName || type;
-      if (skip.has(sheetName) || wb.SheetNames.includes(sheetName)) {
-        sheetName = `${sheetName} (${ds.filename.replace(/\.xlsx?$/i, "")})`;
-      }
-      appendStyledSheet(wb, ds.rows, sheetName.slice(0, 31));
-      skip.add(sheetName);
-    }
-  }
-}
-
-function buildPlanExportRows(project) {
-  return project
-    .getTimetableRows()
-    .filter((r) => r.Type === "Seminar")
-    .map((s) => {
-      const plan = normalizePlan(project.getPlan(planKey(s)));
-      return {
-        "Stable session ID": s.sessionId,
-        "Session ID": s.ID,
-        "Module code": s["Module code"],
-        "Module name": s["Module name"],
-        Campus: s.Campus,
-        "Seminar slot": `${s.Weekday} ${formatTimeRange(s["Start time"], s["End time"])}`,
-        "Class test": plan.planned ? "Yes" : "No",
-        "Test week": plan.testWeek,
-        "Test date": plan.testDate,
-        "Test start time": plan.testStartTime,
-        "Test end time": plan.testEndTime,
-        "Duration (minutes)": plan.durationMinutes,
-        Room: plan.room || s.Room || "",
-        "Room confirmed": plan.roomConfirmed ? "Yes" : "No",
-        "Lead tutor": plan.leadTutor || s.Staff || "",
-        Invigilator: plan.invigilator || "",
-        "Paper ready": plan.paperReady ? "Yes" : "No",
-        "LOD/software ready": plan.lodReady ? "Yes" : "No",
-        Status: plan.status,
-        Notes: plan.notes || "",
-      };
-    });
-}
-
-export function downloadProjectExcel(project, filename) {
-  const wb = exportProjectWorkbook(project);
-  const name = filename || buildExportFilename(project);
+  const presetId = options.preset || "full";
+  const wb = buildWorkbookForPreset(project, presetId);
+  const name = options.filename || buildExportFilename(project, presetId);
   XLSX.writeFile(wb, `${name}.xlsx`);
 }
 
-/** e.g. Timetable 2026-06-19 14-30 */
-export function buildExportFilename(project) {
+/** e.g. Timetable class-test-schedule 2026-06-19 14-30 */
+export function buildExportFilename(project, presetId = "full") {
+  const preset = getExportPreset(presetId);
   const base =
     project.primaryFilename?.replace(/\.xlsx?$/i, "") ||
     project.name.replace(/[^\w\- ]+/g, "").trim() ||
@@ -115,5 +41,6 @@ export function buildExportFilename(project) {
     String(now.getDate()).padStart(2, "0"),
   ].join("-");
   const time = [String(now.getHours()).padStart(2, "0"), String(now.getMinutes()).padStart(2, "0")].join("-");
-  return `${base} ${date} ${time}`;
+  const part = preset.filenamePart && preset.id !== "full" ? ` ${preset.filenamePart}` : "";
+  return `${base}${part} ${date} ${time}`;
 }

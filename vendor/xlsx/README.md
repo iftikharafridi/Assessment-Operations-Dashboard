@@ -2,10 +2,11 @@
 
 This folder contains a local copy of [SheetJS](https://sheetjs.com/) (v0.20.3) for reading and writing Excel files when the CDN is unavailable.
 
-The app tries to load Excel support in this order:
+The app loads Excel support in this order:
 
-1. CDN (`cdn.sheetjs.com`) — works when online
-2. Local file (`vendor/xlsx/xlsx.mjs`) — offline fallback
+1. **xlsx-js-style** (`vendor/xlsx-js-style/`) — read/write with cell colours (primary)
+2. SheetJS CDN — read-only fallback when online
+3. Local SheetJS (`vendor/xlsx/xlsx.mjs`) — read-only offline fallback
 
 If both fail, the dashboard shows a friendly message and the **Try sample timetable** button still works using built-in sample data.
 

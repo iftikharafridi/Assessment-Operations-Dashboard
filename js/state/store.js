@@ -8,9 +8,10 @@ const state = {
   activeTab: "welcome",
   filters: defaultFilters(),
   trackerShowAll: false,
+  trackerSort: { key: "seminarSlot", dir: "asc" },
   invigCampus: "",
   invigDay: "Monday",
-  calendarLayout: "time-side",
+  calendarLayout: "day-side",
   dirty: false,
   excelReaderReady: true,
 };
@@ -51,8 +52,18 @@ export function markDirty() {
   if (!state.dirty) emit({ dirty: true });
 }
 
+/** Mark project dirty without notifying subscribers (used while editing table fields). */
+export function setDirtySilent() {
+  state.dirty = true;
+}
+
 export function setTrackerShowAll(value) {
   emit({ trackerShowAll: value });
+}
+
+/** @param {{ key: string, dir: 'asc'|'desc' }} sort */
+export function setTrackerSort(sort) {
+  emit({ trackerSort: sort });
 }
 
 export function setInvigilation(campus, day) {

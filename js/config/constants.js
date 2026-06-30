@@ -1,23 +1,37 @@
 /** @typedef {'timetable'|'staff'|'rooms'|'assessmentSchedule'|'unknown'} FileType */
 
-export const APP_VERSION = "1.1.3";
+export const APP_VERSION = "1.3.1";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
+export const CALENDAR_SLOT_MINUTES = 15;
+export const CALENDAR_START_HOUR = 9;
+export const CALENDAR_END_HOUR = 18;
+
+/** 15-minute bands for the weekly grid (09:00 – 17:45). */
 export const TIME_SLOTS = (() => {
   const slots = [];
-  for (let h = 9; h <= 17; h++) {
-    for (const m of [0, 30]) {
-      if (h === 17 && m === 30) break;
+  for (let h = CALENDAR_START_HOUR; h < CALENDAR_END_HOUR; h++) {
+    for (const m of [0, 15, 30, 45]) {
       slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
     }
   }
   return slots;
 })();
 
+/** Hour labels for calendar header row (each hour = 4 quarter slots). */
+export const CALENDAR_HOURS = (() => {
+  const hours = [];
+  for (let h = CALENDAR_START_HOUR; h < CALENDAR_END_HOUR; h++) {
+    hours.push(String(h).padStart(2, "0"));
+  }
+  return hours;
+})();
+
 export const PLAN_SHEET = "Class Test Plans";
 export const INVIGILATION_SHEET = "Invigilation Plan";
 export const DASHBOARD_SHEET = "Dashboard Summary";
+export const DASHBOARD_SETTINGS_SHEET = "Dashboard Settings";
 export const REPORT_CLASS_TEST_SCHEDULE = "Class Test Schedule";
 export const REPORT_MISSING_INVIGILATORS = "Missing Invigilators";
 export const REPORT_CAMPUS_SUMMARY = "Campus Summary";
@@ -40,16 +54,68 @@ export function displayAssessmentStatus(status) {
   return status || "Not started";
 }
 
+export const WEEKLY_TIMETABLE_SHEET = "Weekly Timetable";
+
+export const CLASS_TEST_SCHEDULE_COLUMNS = [
+  "Module code",
+  "Module name",
+  "Campus",
+  "Test week",
+  "Test date",
+  "Day",
+  "Time",
+  "Room",
+  "Room confirmed",
+  "Lead tutor",
+  "Invigilator",
+  "Status",
+  "Paper ready",
+  "LOD ready",
+  "Notes",
+];
+
+export const INVIGILATION_PLAN_COLUMNS = [
+  "Session ID",
+  "Module code",
+  "Campus",
+  "Test week",
+  "Day",
+  "Time",
+  "Lead tutor",
+  "Invigilator",
+  "Same campus",
+  "Availability",
+  "Warning",
+  "Status",
+];
+
+export const WEEKLY_TIMETABLE_COLUMNS = [
+  "Weekday",
+  "Start time",
+  "End time",
+  "Campus",
+  "Module code",
+  "Module name",
+  "Type",
+  "Activity",
+  "Room",
+  "Staff",
+  "Student Groups",
+  "Size",
+];
+
 export const GENERATED_SHEETS = new Set([
   PLAN_SHEET,
   INVIGILATION_SHEET,
   DASHBOARD_SHEET,
+  DASHBOARD_SETTINGS_SHEET,
   REPORT_CLASS_TEST_SCHEDULE,
   REPORT_MISSING_INVIGILATORS,
   REPORT_CAMPUS_SUMMARY,
   REPORT_TUTOR_WORKLOAD,
   REPORT_ASSESSMENT_EVENTS,
   ASSESSMENT_TRACKING_SHEET,
+  WEEKLY_TIMETABLE_SHEET,
   META_SHEET,
 ]);
 

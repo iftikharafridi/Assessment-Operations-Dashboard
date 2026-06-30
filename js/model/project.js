@@ -1,5 +1,6 @@
 import { APP_VERSION, FUTURE_MODULES } from "../config/constants.js";
 import { normalizePlan } from "../planner/plans.js";
+import { normalizeSemesterStartDate } from "../analytics/assessment.js";
 import {
   createEmptyAssessmentTracking,
   normalizeAssessmentRecord,
@@ -121,7 +122,7 @@ export class Project {
   }
 
   setSemesterStartDate(date) {
-    this.assessmentTracking.semesterStartDate = String(date ?? "").trim();
+    this.assessmentTracking.semesterStartDate = normalizeSemesterStartDate(date);
     this.touch();
   }
 
