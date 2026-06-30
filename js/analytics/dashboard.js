@@ -2,6 +2,7 @@ import { DEFAULT_PLAN } from "../config/constants.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
 import { getInvigilatorAvailability } from "./invigilation.js";
 import { getTestSlot, timesOverlap } from "../utils/time.js";
+import { parseGroups } from "../utils/groups.js";
 import { unique } from "../utils/dom.js";
 
 export function getPlannedSeminars(project) {
@@ -150,6 +151,7 @@ export function buildClassTestSchedule(project) {
     .map((s) => {
       const p = normalizePlan(project.getPlan(planKey(s)));
       const slot = getTestSlot(s, p);
+      const groups = parseGroups(s.Activity, s["Student Groups"]);
       const invigilation = p.invigilator
         ? getInvigilatorAvailability(p.invigilator, s, p, rows).available
           ? "Assigned"
@@ -159,6 +161,9 @@ export function buildClassTestSchedule(project) {
         "Module code": s["Module code"],
         "Module name": s["Module name"],
         Campus: s.Campus,
+        Groups: groups.letterGroups.length ? groups.letterGroups.join(" & ") : "",
+        "Student Groups": groups.admissionGroups.join(", "),
+        Size: s.Size ?? "",
         "Test week": p.testWeek,
         "Test date": p.testDate,
         Day: slot.weekday,

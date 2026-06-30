@@ -1,6 +1,6 @@
 /** @typedef {'timetable'|'staff'|'rooms'|'assessmentSchedule'|'unknown'} FileType */
 
-export const APP_VERSION = "1.3.2";
+export const APP_VERSION = "1.3.3";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -60,6 +60,9 @@ export const CLASS_TEST_SCHEDULE_COLUMNS = [
   "Module code",
   "Module name",
   "Campus",
+  "Groups",
+  "Student Groups",
+  "Size",
   "Test week",
   "Test date",
   "Day",
