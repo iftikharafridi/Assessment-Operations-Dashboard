@@ -43,6 +43,10 @@ function loadStyledScript() {
   });
 }
 
+export function isStyledExcelReady() {
+  return Boolean(XLSX?.style_version);
+}
+
 export async function initXlsx() {
   if (ready && XLSX) return XLSX;
 

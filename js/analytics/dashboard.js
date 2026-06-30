@@ -1,5 +1,6 @@
 import { DEFAULT_PLAN } from "../config/constants.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
+import { getInvigilatorAvailability } from "./invigilation.js";
 import { getTestSlot, timesOverlap } from "../utils/time.js";
 import { unique } from "../utils/dom.js";
 
@@ -132,27 +133,47 @@ export function buildTutorWorkload(project) {
 }
 
 export function buildClassTestSchedule(project) {
-  return getPlannedSeminars(project).map((s) => {
-    const p = normalizePlan(project.getPlan(planKey(s)));
-    const slot = getTestSlot(s, p);
-    return {
-      "Module code": s["Module code"],
-      "Module name": s["Module name"],
-      Campus: s.Campus,
-      "Test week": p.testWeek,
-      "Test date": p.testDate,
-      Day: slot.weekday,
-      Time: `${slot.start} – ${slot.end}`,
-      Room: p.room,
-      "Room confirmed": p.roomConfirmed ? "Yes" : "No",
-      "Lead tutor": p.leadTutor || s.Staff,
-      Invigilator: p.invigilator,
-      Status: p.status,
-      "Paper ready": p.paperReady ? "Yes" : "No",
-      "LOD ready": p.lodReady ? "Yes" : "No",
-      Notes: p.notes,
-    };
-  });
+  const rows = project.getTimetableRows();
+  return getPlannedSeminars(project)
+    .slice()
+    .sort((a, b) => {
+      const pa = normalizePlan(project.getPlan(planKey(a)));
+      const pb = normalizePlan(project.getPlan(planKey(b)));
+      const week = String(pa.testWeek ?? "").localeCompare(String(pb.testWeek ?? ""), undefined, { numeric: true });
+      if (week) return week;
+      const date = String(pa.testDate ?? "").localeCompare(String(pb.testDate ?? ""));
+      if (date) return date;
+      const campus = String(a.Campus).localeCompare(String(b.Campus));
+      if (campus) return campus;
+      return String(getTestSlot(a, pa).start).localeCompare(String(getTestSlot(b, pb).start));
+    })
+    .map((s) => {
+      const p = normalizePlan(project.getPlan(planKey(s)));
+      const slot = getTestSlot(s, p);
+      const invigilation = p.invigilator
+        ? getInvigilatorAvailability(p.invigilator, s, p, rows).available
+          ? "Assigned"
+          : "Busy / conflict"
+        : "Not assigned";
+      return {
+        "Module code": s["Module code"],
+        "Module name": s["Module name"],
+        Campus: s.Campus,
+        "Test week": p.testWeek,
+        "Test date": p.testDate,
+        Day: slot.weekday,
+        Time: `${slot.start} – ${slot.end}`,
+        Room: p.room,
+        "Room confirmed": p.roomConfirmed ? "Yes" : "No",
+        "Lead tutor": p.leadTutor || s.Staff,
+        Invigilator: p.invigilator || "",
+        Invigilation: invigilation,
+        Status: p.status,
+        "Paper ready": p.paperReady ? "Yes" : "No",
+        "LOD ready": p.lodReady ? "Yes" : "No",
+        Notes: p.notes,
+      };
+    });
 }
 
 export function buildMissingInvigilators(project) {

@@ -1,6 +1,6 @@
 /** @typedef {'timetable'|'staff'|'rooms'|'assessmentSchedule'|'unknown'} FileType */
 
-export const APP_VERSION = "1.3.1";
+export const APP_VERSION = "1.3.2";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -68,10 +68,21 @@ export const CLASS_TEST_SCHEDULE_COLUMNS = [
   "Room confirmed",
   "Lead tutor",
   "Invigilator",
+  "Invigilation",
   "Status",
   "Paper ready",
   "LOD ready",
   "Notes",
+];
+
+export const MISSING_INVIGILATOR_COLUMNS = [
+  "Module code",
+  "Campus",
+  "Test week",
+  "Day",
+  "Time",
+  "Lead tutor",
+  "Status",
 ];
 
 export const INVIGILATION_PLAN_COLUMNS = [

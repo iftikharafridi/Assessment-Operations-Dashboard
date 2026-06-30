@@ -36,6 +36,7 @@ const TYPE_FILLS = {
 };
 
 const INVIGILATION_FILLS = {
+  Assigned: "DCFCE7",
   Available: "DCFCE7",
   "Busy / conflict": "FEE2E2",
   "Not assigned": "FEF3C7",
@@ -58,6 +59,12 @@ function setCellStyle(sheet, r, c, style) {
   sheet[ref].s = style;
 }
 
+function ensureCell(sheet, r, c) {
+  const ref = XLSX.utils.encode_cell({ r, c });
+  if (!sheet[ref]) sheet[ref] = { t: "s", v: "" };
+  return ref;
+}
+
 function styleHeaderRow(sheet, range) {
   for (let c = range.s.c; c <= range.e.c; c++) {
     setCellStyle(sheet, range.s.r, c, cellStyle({ fill: HEADER_FILL, font: HEADER_FONT, bold: true }));
@@ -75,6 +82,7 @@ function rowFillForSheet(kind, row) {
   if (kind === "plans" || kind === "class-test-schedule") {
     const status = row.Status || row.status;
     if (status && PLAN_STATUS_FILLS[status]) return PLAN_STATUS_FILLS[status];
+    if (row.Invigilation === "Not assigned" && row.Status !== "Completed") return INVIGILATION_FILLS["Not assigned"];
     if (String(row["Class test"] ?? "").toLowerCase() === "yes") return "FEF9C3";
     return null;
   }
@@ -109,6 +117,41 @@ function rowFillForSheet(kind, row) {
   return null;
 }
 
+function columnFillForSheet(kind, header, row) {
+  const key = String(header ?? "").trim();
+  if (!key) return null;
+
+  if (key === "Invigilation" && INVIGILATION_FILLS[row.Invigilation]) {
+    return INVIGILATION_FILLS[row.Invigilation];
+  }
+  if (key === "Availability" && INVIGILATION_FILLS[row.Availability]) {
+    return INVIGILATION_FILLS[row.Availability];
+  }
+  if (key === "Status" && PLAN_STATUS_FILLS[row.Status || row.status]) {
+    return PLAN_STATUS_FILLS[row.Status || row.status];
+  }
+  if (
+    key === "Invigilator" &&
+    !String(row.Invigilator ?? "").trim() &&
+    row.Status !== "Completed"
+  ) {
+    return INVIGILATION_FILLS["Not assigned"];
+  }
+  if (kind === "timetable" && key === "Type") {
+    const type = normalizeKey(row.Type);
+    if (type === "lecture") return TYPE_FILLS.lecture;
+    if (type === "seminar") return TYPE_FILLS.seminar;
+  }
+  if (kind === "assessment-events" && key === "Type") {
+    const type = normalizeKey(row.Type);
+    if (type.includes("classtest") || type.includes("class test")) return TYPE_FILLS.classtest;
+    if (type.includes("presentation")) return TYPE_FILLS.presentation;
+    if (type.includes("submission")) return TYPE_FILLS.submission;
+    if (type.includes("exam")) return TYPE_FILLS.exam;
+  }
+  return null;
+}
+
 function applyZebraRows(sheet, rowCount, range, skipRow = () => false) {
   for (let i = 0; i < rowCount; i++) {
     if (i % 2 !== 1 || skipRow(i)) continue;
@@ -121,21 +164,23 @@ function applyZebraRows(sheet, rowCount, range, skipRow = () => false) {
   }
 }
 
-function applyRowColors(sheet, rows, kind) {
+function applyRowColors(sheet, rows, kind, headers = null) {
   if (!sheet?.["!ref"] || !rows?.length) return sheet;
   const range = XLSX.utils.decode_range(sheet["!ref"]);
   styleHeaderRow(sheet, range);
+  const colHeaders = headers?.length ? headers : rows[0] ? Object.keys(rows[0]) : [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const r = range.s.r + 1 + i;
-    const statusFill = rowFillForSheet(kind, row);
+    const rowFill = rowFillForSheet(kind, row);
     const zebra = i % 2 === 1 ? ZEBRA_FILL : null;
-    const fill = statusFill || zebra;
 
     for (let c = range.s.c; c <= range.e.c; c++) {
-      const existing = sheet[XLSX.utils.encode_cell({ r, c })];
-      if (!existing) continue;
+      ensureCell(sheet, r, c);
+      const headerName = colHeaders[c - range.s.c];
+      const colFill = columnFillForSheet(kind, headerName, row);
+      const fill = colFill || rowFill || zebra;
       setCellStyle(sheet, r, c, cellStyle({ fill }));
     }
   }
@@ -217,7 +262,7 @@ export function appendStyledSheet(wb, rows, sheetName, header, sheetKind = "defa
   } else if (sheetKind === "meta") {
     styleHeaderRow(sheet, XLSX.utils.decode_range(sheet["!ref"]));
   } else if (COLORED_KINDS.has(sheetKind)) {
-    applyRowColors(sheet, safeRows, sheetKind);
+    applyRowColors(sheet, safeRows, sheetKind, header?.length ? header : null);
   } else {
     const range = XLSX.utils.decode_range(sheet["!ref"]);
     styleHeaderRow(sheet, range);

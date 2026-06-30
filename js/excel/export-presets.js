@@ -14,6 +14,7 @@ import {
   CLASS_TEST_SCHEDULE_COLUMNS,
   INVIGILATION_PLAN_COLUMNS,
   WEEKLY_TIMETABLE_COLUMNS,
+  MISSING_INVIGILATOR_COLUMNS,
 } from "../config/constants.js";
 import {
   buildClassTestSchedule,
@@ -47,7 +48,7 @@ export const EXPORT_PRESETS = [
   {
     id: "classTestSchedule",
     label: "Class test schedule",
-    hint: "Planned tests only — print-friendly",
+    hint: "All planned tests with invigilation status — includes Missing Invigilators sheet when needed",
     filenamePart: "class-test-schedule",
     sheetKind: "class-test-schedule",
     build: (project) => ({
@@ -55,6 +56,18 @@ export const EXPORT_PRESETS = [
       rows: buildClassTestSchedule(project),
       headers: CLASS_TEST_SCHEDULE_COLUMNS,
     }),
+    extraSheets: (project) => {
+      const rows = buildMissingInvigilators(project);
+      if (!rows.length) return [];
+      return [
+        {
+          name: REPORT_MISSING_INVIGILATORS,
+          rows,
+          headers: MISSING_INVIGILATOR_COLUMNS,
+          sheetKind: "missing-invigilators",
+        },
+      ];
+    },
   },
   {
     id: "invigilationPlan",
@@ -172,6 +185,12 @@ export function buildWorkbookForPreset(project, presetId = "full") {
   const built = preset.build(project);
   const headers = built.headers || (built.rows[0] ? Object.keys(built.rows[0]) : []);
   appendStyledSheet(wb, built.rows, built.name, headers, preset.sheetKind || "default");
+
+  for (const extra of preset.extraSheets?.(project) || []) {
+    const extraHeaders = extra.headers || (extra.rows[0] ? Object.keys(extra.rows[0]) : []);
+    appendStyledSheet(wb, extra.rows, extra.name, extraHeaders, extra.sheetKind || "default");
+  }
+
   return wb;
 }
 
@@ -208,7 +227,13 @@ function buildFullWorkbook(project) {
 
   const missing = buildMissingInvigilators(project);
   if (missing.length) {
-    appendStyledSheet(wb, missing, REPORT_MISSING_INVIGILATORS, null, "missing-invigilators");
+    appendStyledSheet(
+      wb,
+      missing,
+      REPORT_MISSING_INVIGILATORS,
+      MISSING_INVIGILATOR_COLUMNS,
+      "missing-invigilators"
+    );
   }
 
   appendStyledSheet(wb, buildCampusSummary(project), REPORT_CAMPUS_SUMMARY, null, "summary");

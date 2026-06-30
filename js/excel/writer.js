@@ -24,7 +24,8 @@ export function downloadProjectExcel(project, options = {}) {
   const presetId = options.preset || "full";
   const wb = buildWorkbookForPreset(project, presetId);
   const name = options.filename || buildExportFilename(project, presetId);
-  XLSX.writeFile(wb, `${name}.xlsx`);
+  const writeOpts = XLSX.style_version ? { cellStyles: true } : undefined;
+  XLSX.writeFile(wb, `${name}.xlsx`, writeOpts);
 }
 
 /** e.g. Timetable class-test-schedule 2026-06-19 14-30 */

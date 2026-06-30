@@ -14,7 +14,7 @@ import { filterTimetableRows, sanitizeFilters } from "./analytics/filters.js";
 import { ingestWorkbooks, readWorkbook } from "./excel/reader.js";
 import { finalizeProject } from "./model/finalize.js";
 import { downloadProjectExcel } from "./excel/writer.js";
-import { isExcelReaderReady } from "./excel/xlsx.js";
+import { isExcelReaderReady, isStyledExcelReady } from "./excel/xlsx.js";
 import { renderExportMenu, bindExportMenu } from "./components/export-menu.js";
 import { loadSampleTimetable } from "./data/sample-loader.js";
 import { renderFiltersPanel, applyFiltersToDom, bindFilterEvents, readFiltersFromDom } from "./components/filters.js";
@@ -55,6 +55,9 @@ function requireExcelReader() {
 function safeDownloadExcel(project, options = {}) {
   if (!requireExcelReader()) return false;
   try {
+    if (!isStyledExcelReady()) {
+      console.warn("Styled Excel library unavailable — export will have no colours.");
+    }
     downloadProjectExcel(project, options);
     return true;
   } catch (err) {
