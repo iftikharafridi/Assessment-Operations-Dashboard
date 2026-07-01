@@ -1,16 +1,12 @@
 import { PLAN_STATUSES, WEEKDAYS } from "../config/constants.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
+import { ukDateSortKey } from "../utils/dates.js";
 import { timeToMinutes } from "../utils/time.js";
 
 export const TRACKER_SORT_DEFAULT = { key: "seminarSlot", dir: "asc" };
 
 function parseUkDate(value) {
-  const m = String(value ?? "")
-    .trim()
-    .match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (!m) return 0;
-  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-  return year * 10000 + Number(m[2]) * 100 + Number(m[1]);
+  return ukDateSortKey(value);
 }
 
 function seminarSlotSortValue(row) {

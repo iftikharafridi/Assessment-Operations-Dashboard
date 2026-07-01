@@ -1,6 +1,7 @@
 import { esc } from "../utils/dom.js";
 import { PLAN_STATUSES, displayStatus } from "../config/constants.js";
 import { filterOptionsFor, describeFilterContext, moduleSeminarNotice } from "../analytics/filters.js";
+import { renderGroupManager, bindGroupManager } from "./group-manager.js";
 
 export function renderFiltersPanel(allRows, project, activeFilters = {}) {
   const opts = {
@@ -81,7 +82,12 @@ export function renderFiltersPanel(allRows, project, activeFilters = {}) {
       <span><i class="dot lec"></i> Lecture</span>
       <span><i class="dot sem"></i> Seminar</span>
       <span><i class="dot planned"></i> Class test planned</span>
-    </div>`;
+    </div>
+    ${renderGroupManager(project)}`;
+}
+
+export function bindFiltersPanel(project, onChange) {
+  bindGroupManager(project, onChange);
 }
 
 export function readFiltersFromDom() {

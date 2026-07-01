@@ -69,7 +69,8 @@ function cellStyle({ fill, font = "1E293B", bold = false } = {}) {
 function setCellStyle(sheet, r, c, style) {
   const ref = xlsx().utils.encode_cell({ r, c });
   if (!sheet[ref]) sheet[ref] = { t: "s", v: "" };
-  sheet[ref].s = style;
+  // Fresh object per cell — shared style refs can collapse colours in Excel.
+  sheet[ref].s = JSON.parse(JSON.stringify(style));
 }
 
 function ensureCell(sheet, r, c) {
@@ -150,6 +151,17 @@ function columnFillForSheet(kind, header, row) {
   ) {
     return INVIGILATION_FILLS["Not assigned"];
   }
+  if (
+    (key === "Paper ready" || key === "LOD ready" || key === "Room confirmed") &&
+    (kind === "class-test-schedule" || kind === "plans")
+  ) {
+    const value = String(row[key] ?? "").trim().toLowerCase();
+    if (value === "yes") return "DCFCE7";
+    if (value === "no") return "FEF3C7";
+  }
+  if (key === "Class test" && String(row["Class test"] ?? "").toLowerCase() === "yes") {
+    return "FEF9C3";
+  }
   if (kind === "timetable" && key === "Type") {
     const type = normalizeKey(row.Type);
     if (type === "lecture") return TYPE_FILLS.lecture;
@@ -194,16 +206,19 @@ function applyZebraRows(sheet, rowCount, range, skipRow = () => false) {
   }
 }
 
+const COLUMN_FIRST_KINDS = new Set(["class-test-schedule", "plans", "invigilation"]);
+
 function applyRowColors(sheet, rows, kind, headers = null) {
   if (!sheet?.["!ref"] || !rows?.length) return sheet;
   const range = xlsx().utils.decode_range(sheet["!ref"]);
   styleHeaderRow(sheet, range);
   const colHeaders = headers?.length ? headers : rows[0] ? Object.keys(rows[0]) : [];
+  const columnFirst = COLUMN_FIRST_KINDS.has(kind);
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const r = range.s.r + 1 + i;
-    const rowFill = rowFillForSheet(kind, row);
+    const rowFill = columnFirst ? null : rowFillForSheet(kind, row);
     const zebra = i % 2 === 1 ? ZEBRA_FILL : null;
 
     for (let c = range.s.c; c <= range.e.c; c++) {

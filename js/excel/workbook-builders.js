@@ -3,6 +3,7 @@ import {
   TIMETABLE_COLUMNS,
   WEEKLY_TIMETABLE_COLUMNS,
   WEEKDAYS,
+  LABEL_BLACKBOARD_TEST_READY,
 } from "../config/constants.js";
 import { formatTimeRange } from "../utils/time.js";
 import { timeToMinutes } from "../utils/time.js";
@@ -57,7 +58,7 @@ export function buildPlanExportRows(project) {
         "Room confirmed": plan.roomConfirmed ? "Yes" : "No",
         "Lead tutor": plan.leadTutor || s.Staff || "",
         Invigilator: plan.invigilator || "",
-        "Paper ready": plan.paperReady ? "Yes" : "No",
+        [LABEL_BLACKBOARD_TEST_READY]: plan.paperReady ? "Yes" : "No",
         "LOD/software ready": plan.lodReady ? "Yes" : "No",
         Status: plan.status,
         Notes: plan.notes || "",

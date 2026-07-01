@@ -1,6 +1,6 @@
 /** @typedef {'timetable'|'staff'|'rooms'|'assessmentSchedule'|'unknown'} FileType */
 
-export const APP_VERSION = "2.0.0";
+export const APP_VERSION = "1.3.5";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -27,11 +27,6 @@ export const CALENDAR_HOURS = (() => {
   }
   return hours;
 })();
-
-export const LABEL_BLACKBOARD_TEST_READY = "Blackboard test ready";
-export const LABEL_BLACKBOARD_TEST_NOT_READY = "Blackboard test not ready";
-export const HINT_BLACKBOARD_TEST_READY =
-  "Question bank or individual class test configured on Blackboard Ultra";
 
 export const PLAN_SHEET = "Class Test Plans";
 export const INVIGILATION_SHEET = "Invigilation Plan";
@@ -78,7 +73,7 @@ export const CLASS_TEST_SCHEDULE_COLUMNS = [
   "Invigilator",
   "Invigilation",
   "Status",
-  LABEL_BLACKBOARD_TEST_READY,
+  "Paper ready",
   "LOD ready",
   "Notes",
 ];
@@ -187,7 +182,7 @@ export const PLAN_COLUMNS = [
   "Room confirmed",
   "Lead tutor",
   "Invigilator",
-  LABEL_BLACKBOARD_TEST_READY,
+  "Paper ready",
   "LOD/software ready",
   "Status",
   "Notes",

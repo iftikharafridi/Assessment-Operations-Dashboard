@@ -1,11 +1,10 @@
-import { PLAN_STATUSES, displayStatus } from "../config/constants.js";
+import { displayStatus } from "../config/constants.js";
 import { parseGroups } from "../utils/groups.js";
-import { esc, unique } from "../utils/dom.js";
+import { esc } from "../utils/dom.js";
 import { dataTable, intro, bindTableSort, toggleSortKey } from "../components/table.js";
 import { sortTrackerRows, TRACKER_SORT_DEFAULT } from "../analytics/tracker-sort.js";
 import { setTrackerSort } from "../state/store.js";
 import {
-  updatePlan,
   clearAllPlans,
   normalizePlan,
   markAsClassTest,
@@ -13,21 +12,35 @@ import {
   planKey,
 } from "../planner/plans.js";
 import { confirmAction } from "../components/dialog.js";
-import { getInvigilatorAvailability } from "../analytics/invigilation.js";
 import { renderBulkBar, bindBulkBar } from "../planner/bulk.js";
 import { sessionHasConflict } from "../analytics/dashboard.js";
 import { moduleSeminarNotice } from "../analytics/filters.js";
-import { renderInvigilationSection, bindInvigilationSection } from "./invigilation.js";
-import { displayPlanValue } from "../ui/inline-edit.js";
+import { renderClassTestSchedule, bindClassTestScheduleView } from "../components/class-test-schedule.js";
+import { openClassTestDrawer, readinessBadges } from "../components/class-test-drawer.js";
 
-function statusOptions(selected) {
-  return PLAN_STATUSES.map(
-    (st) => `<option value="${st}" ${selected === st ? "selected" : ""}>${displayStatus(st)}</option>`
-  ).join("");
+function statusBadge(status) {
+  const cls = String(status || "Planning")
+    .replace(/\s+/g, "-")
+    .toLowerCase();
+  return `<span class="badge status-${cls}">${esc(displayStatus(status || "Planning"))}</span>`;
 }
 
-export function renderTrackerView({ project, rows, container, state, onUpdate, onExport, onClear, onInvigChange }) {
-  const allRows = project.getTimetableRows();
+function readinessSummary(plan, conflict) {
+  if (plan.status === "Ready" && plan.invigilator && plan.room && plan.paperReady && plan.lodReady) {
+    return `<span class="badge status-ready">Ready</span>`;
+  }
+  if (conflict) return `<span class="badge issue">Conflict</span>`;
+  const issues = [];
+  if (!plan.invigilator) issues.push("Invigilator");
+  if (!plan.room) issues.push("Room");
+  if (!plan.paperReady) issues.push("Blackboard");
+  if (!plan.lodReady) issues.push("LOD");
+  return issues.length
+    ? `<span class="badge warn">${issues.length} item${issues.length === 1 ? "" : "s"} pending</span>`
+    : `<span class="badge status-planning">In progress</span>`;
+}
+
+export function renderTrackerView({ project, rows, container, state, onUpdate, onExport, onClear }) {
   const seminars = rows.filter((r) => r.Type === "Seminar");
   const showAll = state.trackerShowAll;
 
@@ -42,35 +55,30 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
       const sid = planKey(s);
       const plan = normalizePlan(project.getPlan(sid));
       const groups = parseGroups(s.Activity, s["Student Groups"]);
-      const invigWarning = plan.invigilator ? getInvigilatorAvailability(plan.invigilator, s, plan, allRows).warning : "";
       const conflict = sessionHasConflict(project, sid);
+      const groupLabel = groups.letterGroups.length ? groups.letterGroups.join(" & ") : groups.admissionGroups.slice(0, 2).join(", ");
 
-      return `<tr class="${plan.planned ? "row-planned" : "row-muted"}${conflict ? " row-issue" : ""}">
+      return `<tr class="tracker-row${plan.planned ? " row-planned" : " row-muted"}${conflict ? " row-issue" : ""}" data-session-id="${esc(sid)}" title="Double-click to view all details">
         <td><input type="checkbox" class="row-select" value="${esc(sid)}" aria-label="Select row"></td>
-        <td>${esc(s.Campus)}</td>
-        <td><strong>${esc(s["Module code"])}</strong> ${groups.letterGroups.length ? `(Grp ${esc(groups.letterGroups.join(" & "))})` : ""}<br><span class="muted">${esc(s["Module name"])}</span></td>
-        <td>${esc(s.Weekday)} ${esc(s["Start time"])}–${esc(s["End time"])}</td>
+        <td><strong>${esc(s["Module code"])}</strong></td>
+        <td><span class="muted small">${esc(s["Module name"])}</span></td>
+        <td><span class="campus-chip">${esc(s.Campus)}</span></td>
+        <td>${esc(groupLabel || "—")}</td>
+        <td>${esc(plan.testWeek || "—")}</td>
+        <td>${esc(plan.testDate || "—")}</td>
+        <td>${esc(plan.testStartTime || s["Start time"] || "—")}</td>
+        <td>${esc(plan.room || s.Room || "—")}</td>
+        <td>${esc(plan.leadTutor || s.Staff || "—")}</td>
+        <td>${esc(plan.invigilator || "—")}</td>
+        <td>${statusBadge(plan.status)}</td>
+        <td>${readinessSummary(plan, conflict)}</td>
+        <td class="tracker-badges">${readinessBadges(plan, conflict)}</td>
         <td class="action-cell">${
           plan.planned
-            ? `<button type="button" class="btn btn-small btn-muted unmark-test" data-id="${esc(sid)}">Remove</button>`
-            : `<button type="button" class="btn btn-small btn-primary mark-test" data-id="${esc(sid)}">Mark as class test</button>`
+            ? `<button type="button" class="btn btn-small view-test-detail" data-id="${esc(sid)}">View / Edit</button>
+               <button type="button" class="btn btn-small btn-muted unmark-test" data-id="${esc(sid)}">Remove</button>`
+            : `<button type="button" class="btn btn-small btn-primary mark-test" data-id="${esc(sid)}">Mark test</button>`
         }</td>
-        <td><input class="plan-field" data-id="${sid}" data-field="testWeek" value="${esc(displayPlanValue(sid, "testWeek", plan, s))}" placeholder="Week 8"></td>
-        <td><input class="plan-field" data-id="${sid}" data-field="testDate" value="${esc(displayPlanValue(sid, "testDate", plan, s))}" placeholder="dd/mm/yyyy"></td>
-        <td><input class="plan-field plan-time" data-id="${sid}" data-field="testStartTime" value="${esc(displayPlanValue(sid, "testStartTime", plan, s))}" placeholder="09:30"></td>
-        <td><input class="plan-field plan-time" data-id="${sid}" data-field="testEndTime" value="${esc(displayPlanValue(sid, "testEndTime", plan, s))}" placeholder="11:30"></td>
-        <td><input class="plan-field plan-narrow" data-id="${sid}" data-field="durationMinutes" value="${esc(displayPlanValue(sid, "durationMinutes", plan, s))}" placeholder="mins" title="Duration in minutes — end time updates automatically"></td>
-        <td><select class="plan-field" data-id="${sid}" data-field="status">${statusOptions(plan.status)}</select></td>
-        <td><input class="plan-field" data-id="${sid}" data-field="room" value="${esc(displayPlanValue(sid, "room", plan, s))}"></td>
-        <td><input type="checkbox" class="plan-check" data-id="${sid}" data-field="roomConfirmed" ${plan.roomConfirmed ? "checked" : ""} title="Room confirmed"></td>
-        <td><input class="plan-field" data-id="${sid}" data-field="leadTutor" value="${esc(displayPlanValue(sid, "leadTutor", plan, s))}"></td>
-        <td>
-          <input class="plan-field invig-input" data-id="${sid}" data-field="invigilator" value="${esc(displayPlanValue(sid, "invigilator", plan, s))}" placeholder="Type a name" autocomplete="off" spellcheck="false">
-          ${invigWarning ? `<div class="field-warning">${esc(invigWarning)}</div>` : ""}
-        </td>
-        <td><input type="checkbox" class="plan-check" data-id="${sid}" data-field="paperReady" ${plan.paperReady ? "checked" : ""}></td>
-        <td><input type="checkbox" class="plan-check" data-id="${sid}" data-field="lodReady" ${plan.lodReady ? "checked" : ""}></td>
-        <td><input class="plan-field wide" data-id="${sid}" data-field="notes" value="${esc(displayPlanValue(sid, "notes", plan, s))}"></td>
       </tr>`;
     })
     .join("");
@@ -83,60 +91,73 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
     (r) => r.Type === "Seminar" && normalizePlan(project.getPlan(planKey(r))).planned
   );
   const missingInvig = plannedSeminars.filter((s) => !normalizePlan(project.getPlan(planKey(s))).invigilator).length;
-  const assignedInvig = unique(
-    plannedSeminars.map((s) => normalizePlan(project.getPlan(planKey(s))).invigilator).filter(Boolean)
-  );
+
+  const headers = [
+    { label: "" },
+    { label: "Module code", sortKey: "module" },
+    { label: "Module name" },
+    { label: "Campus", sortKey: "campus" },
+    { label: "Groups" },
+    { label: "Test week", sortKey: "testWeek" },
+    { label: "Test date", sortKey: "testDate" },
+    { label: "Time", sortKey: "testStartTime" },
+    { label: "Room", sortKey: "room" },
+    { label: "Lead tutor", sortKey: "leadTutor" },
+    { label: "Invigilator", sortKey: "invigilator" },
+    { label: "Status", sortKey: "status" },
+    { label: "Readiness" },
+    { label: "Flags" },
+    { label: "Actions" },
+  ];
 
   container.innerHTML = `
-    <div class="tracker-actions">
-      <button id="export-plans" class="btn btn-primary">Save workbook</button>
-      <button id="clear-plans" class="btn btn-danger">Clear all plans</button>
-    </div>
-    ${intro("Mark seminar slots as class tests, set dates and rooms, and assign invigilators. <strong>Click a column heading</strong> to sort. Use <strong>Show all seminars</strong> to see every slot, or only planned tests by default.")}
-    ${missingInvig ? `<div class="alert alert-warning" role="status"><strong>${missingInvig} planned test${missingInvig === 1 ? "" : "s"} without an invigilator</strong><p>Type a name in the Invigilator column (tab away to save). Open <strong>Who is available?</strong> below for staff suggestions, then <strong>Save workbook</strong>.</p></div>` : ""}
-    ${assignedInvig.length ? `<p class="muted small assigned-invig-summary"><strong>Assigned in this session:</strong> ${assignedInvig.map((n) => esc(n)).join(" · ")}</p>` : ""}
+    ${renderClassTestSchedule(project, {
+      view: state.classTestScheduleView || "this-week",
+      filters: state.classTestScheduleFilters || {},
+      weekOffset: state.classTestScheduleWeekOffset || 0,
+    })}
+    ${intro("Planned class tests in a compact view. Double-click a row or use <strong>View / Edit</strong> for full details. Assign invigilators on the Invigilation tab.")}
+    ${missingInvig ? `<div class="alert alert-warning" role="status"><strong>${missingInvig} planned test${missingInvig === 1 ? "" : "s"} without an invigilator</strong><p>Open the <strong>Invigilation</strong> tab to assign staff, or edit rows here.</p></div>` : ""}
     ${seminarNotice ? `<div class="alert alert-info" role="status"><strong>Filter note</strong><p>${esc(seminarNotice)}</p></div>` : ""}
     ${renderBulkBar()}
-    <div class="table-scroll">
+    <div class="table-scroll table-scroll-sticky">
     ${dataTable({
-      headers: [
-        { label: "" },
-        { label: "Campus", sortKey: "campus" },
-        { label: "Module", sortKey: "module" },
-        { label: "Seminar slot", sortKey: "seminarSlot" },
-        { label: "Action" },
-        { label: "Test week", sortKey: "testWeek" },
-        { label: "Test date", sortKey: "testDate" },
-        { label: "Start", sortKey: "testStartTime" },
-        { label: "End", sortKey: "testEndTime" },
-        { label: "Duration", sortKey: "duration" },
-        { label: "Status", sortKey: "status" },
-        { label: "Room", sortKey: "room" },
-        { label: "Room OK" },
-        { label: "Lead tutor", sortKey: "leadTutor" },
-        { label: "Invigilator", sortKey: "invigilator" },
-        { label: "Paper" },
-        { label: "LOD" },
-        { label: "Notes", sortKey: "notes" },
-      ],
+      headers,
       rowsHtml,
-      className: "data-table tracker-table",
+      className: "data-table table-pro tracker-table-compact",
       sort,
     })}
     </div>
-    <label class="show-all"><input type="checkbox" id="tracker-show-all" ${showAll ? "checked" : ""}> Show all seminars</label>
-    ${renderInvigilationSection({ project, state })}`;
+    <div class="tracker-footer-actions">
+      <label class="show-all"><input type="checkbox" id="tracker-show-all" ${showAll ? "checked" : ""}> Show all seminars (not just planned tests)</label>
+      <div class="tracker-actions-inline">
+        <button id="export-plans" class="btn btn-primary">Save workbook</button>
+        <button id="clear-plans" class="btn btn-danger btn-small">Clear all plans</button>
+      </div>
+    </div>`;
 
+  bindClassTestScheduleView(container, {
+    onViewChange: (view) => onUpdate(view, "classTestView"),
+    onFilterChange: (filters) => onUpdate(filters, "classTestFilters"),
+    onWeekOffsetChange: (delta) => onUpdate(delta, "classTestWeek"),
+  });
   bindRowActions(container, project, seminars, onUpdate);
   bindBulkBar(container, project, onUpdate);
   bindTableSort(container, (sortKey) => {
     setTrackerSort(toggleSortKey(sort, sortKey));
   });
-  if (onInvigChange) bindInvigilationSection(container, { onInvigChange });
+
+  container.querySelectorAll(".tracker-row").forEach((tr) => {
+    tr.addEventListener("dblclick", () => {
+      const sid = tr.dataset.sessionId;
+      const session = seminars.find((s) => planKey(s) === sid);
+      if (session) openClassTestDrawer(project, session, { onSaved: () => onUpdate() });
+    });
+  });
 
   document.getElementById("export-plans")?.addEventListener("click", onExport);
-  document.getElementById("clear-plans")?.addEventListener("click", () => {
-    if (confirmAction("Clear all class test plans? This cannot be undone until you save a new workbook.")) {
+  document.getElementById("clear-plans")?.addEventListener("click", async () => {
+    if (await confirmAction("Clear all class test plans? This cannot be undone until you save a new workbook.")) {
       clearAllPlans(project);
       onClear();
     }
@@ -160,30 +181,10 @@ function bindRowActions(container, project, seminars, onUpdate) {
       onUpdate();
     };
   });
-
-  const persistField = (el, { notify = true } = {}) => {
-    const field = el.dataset.field;
-    const id = el.dataset.id;
-    const prior = normalizePlan(project.getPlan(id))[field];
-    const next = el.value;
-    if (String(prior ?? "") === String(next ?? "")) return;
-    updatePlan(project, id, { [field]: next, planned: true }, { notify });
-    onUpdate(false);
-  };
-
-  container.querySelectorAll(".plan-field").forEach((el) => {
-    if (el.tagName === "SELECT") {
-      el.onchange = () => {
-        persistField(el);
-        onUpdate(true);
-      };
-    }
-  });
-
-  container.querySelectorAll(".plan-check").forEach((el) => {
-    el.onchange = () => {
-      updatePlan(project, el.dataset.id, { [el.dataset.field]: el.checked, planned: true });
-      onUpdate(false);
+  container.querySelectorAll(".view-test-detail").forEach((btn) => {
+    btn.onclick = () => {
+      const session = seminars.find((s) => planKey(s) === btn.dataset.id);
+      if (session) openClassTestDrawer(project, session, { onSaved: () => onUpdate() });
     };
   });
 }

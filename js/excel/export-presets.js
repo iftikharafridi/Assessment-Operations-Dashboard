@@ -32,7 +32,9 @@ import {
   appendAuxiliarySheets,
   buildPlanExportRows,
   buildWeeklyTimetableRows,
+  flattenRowForExport,
 } from "./workbook-builders.js";
+import { campusMatches } from "../config/constants.js";
 import { getWriteXlsx } from "./xlsx.js";
 
 /** @typedef {'full'|'classTestPlans'|'classTestSchedule'|'invigilationPlan'|'weeklyTimetable'|'campusSummary'|'tutorWorkload'|'missingInvigilators'|'assessmentEvents'|'assessmentTracking'} ExportPresetId */
@@ -169,35 +171,219 @@ export const EXPORT_PRESETS = [
   },
 ];
 
+/** Named export packs for Reports & Export tab. */
+export const EXPORT_BUNDLES = [
+  {
+    id: "bundleFull",
+    label: "Export Full Operations Workbook",
+    hint: "All sheets — timetable, class tests, invigilation, assessments, campus summary, and settings.",
+    filenamePart: "operations-workbook",
+    sheets: [
+      "Timetable",
+      "Class Test Plans",
+      "Class Test Schedule",
+      "Invigilation Plan",
+      "Weekly Timetable",
+      "Missing Invigilators",
+      "Campus Summary",
+      "Tutor Workload",
+      "Assessment Events",
+      "Assessment Tracking",
+      "Dashboard Settings",
+      "_ProjectMeta",
+    ],
+  },
+  {
+    id: "bundleClassTestPlan",
+    label: "Export Class Test Plan Only",
+    hint: "Class test plans, schedule, missing invigilators, and campus summary.",
+    filenamePart: "class-test-plan-pack",
+    sheets: ["Class Test Plans", "Class Test Schedule", "Missing Invigilators", "Campus Summary"],
+  },
+  {
+    id: "bundleInvigilationPack",
+    label: "Export Invigilation Pack",
+    hint: "Invigilation plan, missing invigilators, tutor workload, and campus summary.",
+    filenamePart: "invigilation-pack",
+    sheets: ["Invigilation Plan", "Missing Invigilators", "Tutor Workload", "Campus Summary"],
+  },
+  {
+    id: "bundleAssessmentSummary",
+    label: "Export Assessment Schedule Summary",
+    hint: "Assessment events and operational tracking.",
+    filenamePart: "assessment-summary",
+    sheets: ["Assessment Events", "Assessment Tracking"],
+    requiresAssessment: true,
+  },
+  {
+    id: "bundleCampusPack",
+    label: "Export Campus Pack",
+    hint: "Select a campus on the Reports tab — timetable, class tests, invigilation, and summary for that site.",
+    filenamePart: "campus-pack",
+    isCampusSelect: true,
+    sheets: ["Timetable (campus)", "Class Test Schedule", "Invigilation Plan", "Missing Invigilators", "Campus Summary"],
+  },
+  {
+    id: "bundleFilteredView",
+    label: "Export Visible / Filtered View",
+    hint: "Exports rows matching your current sidebar filters and active tab.",
+    filenamePart: "filtered-view",
+    sheets: ["Filtered export based on current view"],
+  },
+];
+
 export function getExportPreset(id) {
+  const bundle = EXPORT_BUNDLES.find((b) => b.id === id);
+  if (bundle) return { ...bundle, isBundle: true };
   return EXPORT_PRESETS.find((p) => p.id === id) || EXPORT_PRESETS[0];
 }
 
 export function listExportPresets(project) {
-  return EXPORT_PRESETS.filter((p) => !p.requiresAssessment || project?.hasAssessmentSchedule?.());
+  return [
+    ...EXPORT_BUNDLES.filter((b) => !b.requiresAssessment || project?.hasAssessmentSchedule?.()),
+    ...EXPORT_PRESETS.filter((p) => !p.requiresAssessment || project?.hasAssessmentSchedule?.()),
+  ];
 }
 
-export function buildWorkbookForPreset(project, presetId = "full") {
-  const preset = getExportPreset(presetId);
-  if (preset.id === "full") return buildFullWorkbook(project);
+function filterRowsByCampus(rows, campus) {
+  if (!campus) return rows;
+  return rows.filter((r) => campusMatches(campus, r.Campus));
+}
 
-  const wb = getWriteXlsx().utils.book_new();
-  const built = preset.build(project);
+function appendSheetFromPreset(wb, preset, project, options = {}) {
+  const built = preset.build(project, options);
   const headers = built.headers || (built.rows[0] ? Object.keys(built.rows[0]) : []);
-  appendStyledSheet(wb, built.rows, built.name, headers, preset.sheetKind || "default");
-
-  for (const extra of preset.extraSheets?.(project) || []) {
+  appendStyledSheet(wb, built.rows, built.name, headers, preset.sheetKind || built.sheetKind || "default");
+  for (const extra of preset.extraSheets?.(project, options) || []) {
     const extraHeaders = extra.headers || (extra.rows[0] ? Object.keys(extra.rows[0]) : []);
     appendStyledSheet(wb, extra.rows, extra.name, extraHeaders, extra.sheetKind || "default");
   }
+}
 
+export function buildWorkbookForPreset(project, presetId = "full", options = {}) {
+  if (presetId === "full" || presetId === "bundleFull") return buildFullWorkbook(project, options);
+
+  const bundle = EXPORT_BUNDLES.find((b) => b.id === presetId);
+  if (bundle) return buildBundleWorkbook(project, bundle, options);
+
+  const preset = EXPORT_PRESETS.find((p) => p.id === presetId) || EXPORT_PRESETS[0];
+  const wb = getWriteXlsx().utils.book_new();
+  appendSheetFromPreset(wb, preset, project, options);
+  appendMetaSheet(wb, project, options);
   return wb;
 }
 
-function buildFullWorkbook(project) {
+function buildBundleWorkbook(project, bundle, options = {}) {
+  const wb = getWriteXlsx().utils.book_new();
+  const campus = options.campus || "";
+
+  switch (bundle.id) {
+    case "bundleClassTestPlan":
+      appendSheetFromPreset(wb, getExportPreset("classTestPlans"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("classTestSchedule"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("missingInvigilators"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("campusSummary"), project, options);
+      break;
+    case "bundleInvigilationPack":
+      appendSheetFromPreset(wb, getExportPreset("invigilationPlan"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("missingInvigilators"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("tutorWorkload"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("campusSummary"), project, options);
+      break;
+    case "bundleAssessmentSummary":
+      appendSheetFromPreset(wb, getExportPreset("assessmentEvents"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("assessmentTracking"), project, options);
+      break;
+    case "bundleCampusPack":
+      buildCampusPackWorkbook(wb, project, campus);
+      break;
+    case "bundleFilteredView":
+      buildFilteredViewWorkbook(wb, project, options);
+      break;
+    default:
+      return buildFullWorkbook(project, options);
+  }
+
+  appendMetaSheet(wb, project, { ...options, bundleId: bundle.id, campus });
+  return wb;
+}
+
+function buildCampusPackWorkbook(wb, project, campus) {
+  if (!campus) throw new Error("Select a campus for the campus pack export.");
+
+  const weekly = filterRowsByCampus(buildWeeklyTimetableRows(project), campus);
+  appendStyledSheet(wb, weekly, `${WEEKLY_TIMETABLE_SHEET} (${campus})`, WEEKLY_TIMETABLE_COLUMNS, "timetable");
+
+  const classTests = filterRowsByCampus(buildClassTestSchedule(project), campus);
+  appendStyledSheet(wb, classTests, REPORT_CLASS_TEST_SCHEDULE, CLASS_TEST_SCHEDULE_COLUMNS, "class-test-schedule");
+
+  const invig = filterRowsByCampus(buildInvigilationPlanRows(project), campus);
+  appendStyledSheet(wb, invig, INVIGILATION_SHEET, INVIGILATION_PLAN_COLUMNS, "invigilation");
+
+  const missing = filterRowsByCampus(buildMissingInvigilators(project), campus);
+  if (missing.length) {
+    appendStyledSheet(wb, missing, REPORT_MISSING_INVIGILATORS, MISSING_INVIGILATOR_COLUMNS, "missing-invigilators");
+  }
+
+  const summary = buildCampusSummary(project).filter((r) => campusMatches(campus, r.Campus));
+  appendStyledSheet(wb, summary.length ? summary : [{ Campus: campus, Note: "No data for this campus." }], REPORT_CAMPUS_SUMMARY, null, "summary");
+}
+
+function buildFilteredViewWorkbook(wb, project, options = {}) {
+  const { filters = {}, activeTab = "" } = options;
+  const allRows = project.getTimetableRows();
+  const filtered = allRows.filter((row) => {
+    if (filters.campus && !campusMatches(filters.campus, row.Campus)) return false;
+    if (filters.weekday && row.Weekday !== filters.weekday) return false;
+    if (filters.moduleCode && !String(row["Module code"]).toLowerCase().includes(String(filters.moduleCode).toLowerCase())) return false;
+    if (filters.tutor && !String(row.Staff || "").toLowerCase().includes(String(filters.tutor).toLowerCase())) return false;
+    if (filters.type && row.Type !== filters.type) return false;
+    return true;
+  });
+
+  const tab = String(activeTab || "dashboard");
+  if (tab === "tests" || tab === "invigilation") {
+    const planned = filtered.filter((r) => r.Type === "Seminar");
+    appendStyledSheet(wb, buildClassTestSchedule(project).filter((r) => planned.some((p) => p["Module code"] === r["Module code"])), `${REPORT_CLASS_TEST_SCHEDULE} (filtered)`, CLASS_TEST_SCHEDULE_COLUMNS, "class-test-schedule");
+  } else if (tab === "assessment" && project.getAssessmentEvents?.().length) {
+    appendStyledSheet(wb, project.getAssessmentEvents().map(eventToRow), REPORT_ASSESSMENT_EVENTS, ASSESSMENT_EXPORT_COLUMNS, "assessment-events");
+  } else {
+    appendStyledSheet(
+      wb,
+      filtered.map((row) => flattenRowForExport(row)),
+      `${WEEKLY_TIMETABLE_SHEET} (filtered)`,
+      WEEKLY_TIMETABLE_COLUMNS,
+      "timetable"
+    );
+  }
+}
+
+function appendMetaSheet(wb, project, options = {}) {
+  const exportedAt = formatExportTimestamp();
+  const sourceFiles = Object.values(project.datasets || {})
+    .flat()
+    .map((d) => d.filename)
+    .filter(Boolean);
+  appendStyledSheet(
+    wb,
+    [{
+      payload: JSON.stringify({
+        ...project.toMeta(),
+        exportedAt,
+        exportBundle: options.bundleId || options.presetId || null,
+        exportCampus: options.campus || null,
+        sourceFiles,
+      }),
+    }],
+    META_SHEET,
+    ["payload"],
+    "meta"
+  );
+}
+
+function buildFullWorkbook(project, options = {}) {
   const wb = getWriteXlsx().utils.book_new();
   const primary = project.datasets.timetable[0];
-  const exportedAt = formatExportTimestamp();
 
   if (primary?.rows?.length) {
     appendTimetableSheet(wb, primary);
@@ -258,7 +444,7 @@ function buildFullWorkbook(project) {
 
   appendStyledSheet(wb, buildDashboardSettingsRows(project), DASHBOARD_SETTINGS_SHEET, ["Setting", "Value"], "settings");
 
-  appendStyledSheet(wb, [{ payload: JSON.stringify({ ...project.toMeta(), exportedAt }) }], META_SHEET, ["payload"], "meta");
+  appendMetaSheet(wb, project, { ...options, bundleId: "bundleFull" });
 
   return wb;
 }

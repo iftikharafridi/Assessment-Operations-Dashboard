@@ -1,4 +1,4 @@
-import { DEFAULT_PLAN } from "../config/constants.js";
+import { DEFAULT_PLAN, LABEL_BLACKBOARD_TEST_READY } from "../config/constants.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
 import { getInvigilatorAvailability } from "./invigilation.js";
 import { getTestSlot, timesOverlap } from "../utils/time.js";
@@ -21,6 +21,18 @@ export function computeDashboardMetrics(project) {
     const p = normalizePlan(project.getPlan(planKey(r)));
     return !p.invigilator && p.status !== "Completed";
   });
+  const roomsNotConfirmed = planned.filter((r) => {
+    const p = normalizePlan(project.getPlan(planKey(r)));
+    return !p.roomConfirmed && p.status !== "Completed";
+  });
+  const paperNotReady = planned.filter((r) => {
+    const p = normalizePlan(project.getPlan(planKey(r)));
+    return !p.paperReady && p.status !== "Completed";
+  });
+  const lodNotReady = planned.filter((r) => {
+    const p = normalizePlan(project.getPlan(planKey(r)));
+    return !p.lodReady && p.status !== "Completed";
+  });
   const conflicts = detectConflicts(project);
 
   return {
@@ -30,9 +42,39 @@ export function computeDashboardMetrics(project) {
     readyTests: ready.length,
     completedTests: completed.length,
     missingInvigilators: missingInvigilators.length,
+    roomsNotConfirmed: roomsNotConfirmed.length,
+    paperNotReady: paperNotReady.length,
+    lodNotReady: lodNotReady.length,
+    assessmentEvents: project.getAssessmentEvents?.().length || 0,
     conflicts: conflicts.length,
     conflictDetails: conflicts,
   };
+}
+
+/** Per-campus metrics for dashboard cards. */
+export function computeCampusMetrics(project) {
+  const rows = project.getTimetableRows();
+  const campuses = unique(rows.map((r) => r.Campus)).sort();
+  const conflicts = detectConflicts(project);
+
+  return campuses.map((campus) => {
+    const campusRows = rows.filter((r) => r.Campus === campus);
+    const seminars = campusRows.filter((r) => r.Type === "Seminar");
+    const planned = seminars.filter((r) => normalizePlan(project.getPlan(planKey(r))).planned);
+    const missingInvig = planned.filter((r) => !normalizePlan(project.getPlan(planKey(r))).invigilator).length;
+    const campusSessionIds = new Set(planned.map((r) => planKey(r)));
+    const issueCount = conflicts.filter((c) => c.sessionIds.some((id) => campusSessionIds.has(id))).length + missingInvig;
+
+    return {
+      campus,
+      sessions: campusRows.length,
+      seminars: seminars.length,
+      plannedTests: planned.length,
+      readyTests: planned.filter((r) => normalizePlan(project.getPlan(planKey(r))).status === "Ready").length,
+      missingInvigilators: missingInvig,
+      warnings: issueCount,
+    };
+  });
 }
 
 export function detectConflicts(project) {
@@ -174,7 +216,7 @@ export function buildClassTestSchedule(project) {
         Invigilator: p.invigilator || "",
         Invigilation: invigilation,
         Status: p.status,
-        "Paper ready": p.paperReady ? "Yes" : "No",
+        [LABEL_BLACKBOARD_TEST_READY]: p.paperReady ? "Yes" : "No",
         "LOD ready": p.lodReady ? "Yes" : "No",
         Notes: p.notes,
       };

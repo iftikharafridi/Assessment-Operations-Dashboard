@@ -27,6 +27,7 @@ import { parseAssessmentTrackingFromSheet, normalizeSemesterStartDate, fillMissi
 import { parseDashboardSettingsFromRows } from "./dashboard-settings.js";
 import { normalizePlan, planKey } from "../planner/plans.js";
 import { seminarLookupKey } from "../utils/seminar-match.js";
+import { LABEL_BLACKBOARD_TEST_READY } from "../config/constants.js";
 
 export { pickBestSheet, sheetToRows, headersFromSheet };
 
@@ -39,6 +40,10 @@ function truthy(value) {
   if (typeof value === "boolean") return value;
   const s = String(value ?? "").trim().toLowerCase();
   return s === "yes" || s === "true" || s === "1" || s === "y";
+}
+
+function readBlackboardTestReady(row) {
+  return truthy(row[LABEL_BLACKBOARD_TEST_READY] ?? row["Paper ready"] ?? row["Blackboard ready"]);
 }
 
 export function parsePlansFromSheet(sheet) {
@@ -61,7 +66,7 @@ export function parsePlansFromSheet(sheet) {
       roomConfirmed: truthy(row["Room confirmed"]),
       leadTutor: row["Lead tutor"] ?? "",
       invigilator: row.Invigilator ?? row["2nd invigilator"] ?? "",
-      paperReady: truthy(row["Paper ready"]),
+      paperReady: readBlackboardTestReady(row),
       lodReady: truthy(row["LOD/software ready"]),
       status: row.Status || "Not Planned",
       notes: row.Notes ?? "",
@@ -237,6 +242,9 @@ export function ingestWorkbooks(files) {
       if (settings.semesterStartDate) {
         project.assessmentTracking.semesterStartDate = settings.semesterStartDate;
         project._semesterStartRestored = settings.semesterStartDate;
+      }
+      if (settings.hiddenStudentGroups?.length) {
+        project.hiddenStudentGroups = [...settings.hiddenStudentGroups];
       }
     }
 

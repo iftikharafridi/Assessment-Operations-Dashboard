@@ -89,10 +89,12 @@ export function buildInvigilationPlanRows(project) {
         ? getInvigilatorAvailability(p.invigilator, s, p, rows)
         : { available: null, sameCampus: false, warning: "Invigilator not assigned" };
       return {
+        _planKey: planKey(s),
         "Session ID": s.ID,
         "Module code": s["Module code"],
         Campus: s.Campus,
         "Test week": p.testWeek,
+        "Test date": p.testDate,
         Day: slot.weekday,
         Time: `${slot.start} – ${slot.end}`,
         "Lead tutor": p.leadTutor || s.Staff,

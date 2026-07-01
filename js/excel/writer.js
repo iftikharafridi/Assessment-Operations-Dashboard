@@ -23,8 +23,9 @@ export function downloadProjectExcel(project, options = {}) {
     throw new Error(EXCEL_STYLE_ERROR_MSG);
   }
   const presetId = options.preset || "full";
-  const wb = buildWorkbookForPreset(project, presetId);
-  const name = options.filename || buildExportFilename(project, presetId);
+  const { preset, filename, filters, activeTab, campus, ...rest } = options;
+  const wb = buildWorkbookForPreset(project, presetId, { filters, activeTab, campus, ...rest });
+  const name = filename || buildExportFilename(project, presetId);
   xlsx.writeFile(wb, `${name}.xlsx`, { cellStyles: true });
 }
 

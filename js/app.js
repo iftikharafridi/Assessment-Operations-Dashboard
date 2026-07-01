@@ -7,6 +7,18 @@ import {
   setTab,
   setCalendarLayout,
   setTrackerShowAll,
+  setClassTestScheduleView,
+  setClassTestScheduleFilters,
+  setClassTestScheduleWeekOffset,
+  adjustClassTestScheduleWeekOffset,
+  setAssessmentScheduleView,
+  setAssessmentScheduleFilters,
+  setAssessmentScheduleWeekOffset,
+  adjustAssessmentScheduleWeekOffset,
+  setAssessmentSubView,
+  setTimetableCampus,
+  setLastExportAt,
+  navigateTo,
   resetFilters,
   subscribe,
 } from "./state/store.js";
@@ -17,22 +29,25 @@ import { downloadProjectExcel } from "./excel/writer.js";
 import { isExcelReaderReady, isStyledExcelReady, EXCEL_STYLE_ERROR_MSG } from "./excel/xlsx.js";
 import { renderExportMenu, bindExportMenu } from "./components/export-menu.js";
 import { loadSampleTimetable } from "./data/sample-loader.js";
-import { renderFiltersPanel, applyFiltersToDom, bindFilterEvents, readFiltersFromDom } from "./components/filters.js";
+import { renderFiltersPanel, applyFiltersToDom, bindFilterEvents, readFiltersFromDom, bindFiltersPanel } from "./components/filters.js";
 import { renderTabs, bindTabs, normalizeTabId } from "./components/tabs.js";
 import { renderProjectFiles, renderImportWarnings } from "./components/dropzone.js";
 import { renderExcelReaderError } from "./components/excel-error.js";
 import { renderUserGuideButton, bindUserGuide } from "./components/user-guide.js";
 import { renderWelcomeView } from "./views/welcome.js";
-import { renderOverviewView } from "./views/overview.js";
+import { renderDashboardView } from "./views/dashboard.js";
 import { renderTrackerView } from "./views/tracker.js";
 import { renderAssessmentView } from "./views/assessment.js";
-import { renderIssuesView, countOpenIssues } from "./views/issues.js";
+import { renderTimetableView } from "./views/timetable-tab.js";
+import { renderInvigilationTabView } from "./views/invigilation-tab.js";
+import { renderReportsView } from "./views/reports.js";
+import { renderSettingsView } from "./views/settings.js";
+import { countOpenIssues } from "./views/issues.js";
 import { APP_VERSION } from "./config/constants.js";
 import { clearChildren, unique } from "./utils/dom.js";
 import {
   setRenderFlushHandler,
   shouldDeferShellRender,
-  resumeShellRender,
   isShellRenderPaused,
 } from "./ui/render-guard.js";
 import { bindInlineFieldEditing } from "./ui/inline-edit.js";
@@ -50,6 +65,20 @@ function requireExcelReader() {
   const alerts = alertsEl();
   if (alerts) alerts.innerHTML = renderExcelReaderError();
   return false;
+}
+
+function runExport(project, presetId, extraOptions = {}) {
+  const state = getState();
+  const options = {
+    preset: presetId,
+    ...extraOptions,
+    filters: state.filters,
+    activeTab: state.activeTab,
+  };
+  if (safeDownloadExcel(project, options)) {
+    setLastExportAt(new Date().toLocaleString());
+    if (presetId === "full" || presetId === "bundleFull") emit({ dirty: false });
+  }
 }
 
 function safeDownloadExcel(project, options = {}) {
@@ -72,7 +101,7 @@ function safeDownloadExcel(project, options = {}) {
       alertsEl().innerHTML = `<div class="alert alert-error" role="alert">
         <strong>Could not export workbook</strong>
         <p>${err?.message || "Something went wrong while building the Excel file."}</p>
-        <p class="muted">Try refreshing the page. If the problem continues, save a partial export from the Export menu.</p>
+        <p class="muted">Try refreshing the page. If the problem continues, use Reports &amp; Export for partial exports.</p>
       </div>`;
     }
     return false;
@@ -157,12 +186,8 @@ function renderShell() {
     if (hasData) {
       bindExportMenu({
         project,
-        onExport: (presetId) => {
-          safeDownloadExcel(project, { preset: presetId });
-        },
-        onSave: () => {
-          if (safeDownloadExcel(project, { preset: "full" })) emit({ dirty: false });
-        },
+        onExport: (presetId) => runExport(project, presetId),
+        onSave: () => runExport(project, "full"),
       });
     }
     document.getElementById("add-files-btn")?.addEventListener("click", () => {
@@ -195,6 +220,7 @@ function renderShell() {
         },
         () => resetFilters()
       );
+      bindFiltersPanel(project, () => renderShell());
     } else {
       clearChildren(filtersEl());
     }
@@ -240,21 +266,50 @@ function renderMain() {
     rows,
     container: main,
     state,
+    onNavigate: (tab, partialFilters = {}) => {
+      if (partialFilters.campus) setTimetableCampus(partialFilters.campus);
+      navigateTo(tab, partialFilters);
+    },
     onUpdate: (full = true, kind) => {
       if (kind === "showAll") {
         setTrackerShowAll(full);
+        return;
+      }
+      if (kind === "classTestView") {
+        setClassTestScheduleView(full);
+        return;
+      }
+      if (kind === "classTestFilters") {
+        setClassTestScheduleFilters(full);
+        return;
+      }
+      if (kind === "classTestWeek") {
+        if (full === "reset") setClassTestScheduleWeekOffset(0);
+        else adjustClassTestScheduleWeekOffset(full);
+        return;
+      }
+      if (kind === "assessmentScheduleView") {
+        setAssessmentScheduleView(full);
+        return;
+      }
+      if (kind === "assessmentScheduleFilters") {
+        setAssessmentScheduleFilters(full);
+        return;
+      }
+      if (kind === "assessmentScheduleWeek") {
+        if (full === "reset") setAssessmentScheduleWeekOffset(0);
+        else adjustAssessmentScheduleWeekOffset(full);
         return;
       }
       if (full === false) {
         updateDirtyBadge();
         return;
       }
+      if (isShellRenderPaused()) return;
       renderShell();
     },
     onClear: () => renderShell(),
-    onExport: () => {
-      if (safeDownloadExcel(project, { preset: "full" })) emit({ dirty: false });
-    },
+    onExport: () => runExport(project, "full"),
     onInvigChange: (campus, day) => {
       setInvigilation(campus, day);
     },
@@ -269,7 +324,10 @@ function renderMain() {
   viewHost.className = "view-host";
   main.appendChild(viewHost);
 
-  if (!rows.length && !["assessment", "issues"].includes(normalizeTabId(state.activeTab))) {
+  const tab = normalizeTabId(state.activeTab);
+  const filterIndependentTabs = ["dashboard", "assessment", "reports", "settings", "invigilation"];
+
+  if (!rows.length && !filterIndependentTabs.includes(tab)) {
     viewHost.innerHTML = `<div class="alert alert-warning" role="status">
       <strong>No sessions match your filters</strong>
       <p>Try clearing one or more filters, or choose <strong>London (all sites)</strong> to include both London RAV and London IH.</p>
@@ -279,9 +337,9 @@ function renderMain() {
 
   const viewCtx = { ...ctx, container: viewHost };
 
-  switch (normalizeTabId(state.activeTab)) {
-    case "overview":
-      renderOverviewView(viewCtx);
+  switch (tab) {
+    case "dashboard":
+      renderDashboardView(viewCtx);
       break;
     case "tests":
       renderTrackerView(viewCtx);
@@ -289,11 +347,31 @@ function renderMain() {
     case "assessment":
       renderAssessmentView(viewCtx);
       break;
-    case "issues":
-      renderIssuesView(viewCtx);
+    case "timetable":
+      renderTimetableView({
+        ...viewCtx,
+        onSelectCampus: (campus) => {
+          setTimetableCampus(campus);
+          if (campus) setFilters({ ...state.filters, campus });
+          renderShell();
+        },
+      });
+      break;
+    case "invigilation":
+      renderInvigilationTabView(viewCtx);
+      break;
+    case "reports":
+      renderReportsView({
+        ...viewCtx,
+        onExport: (presetId, extra = {}) => runExport(project, presetId, extra),
+        onSave: () => runExport(project, "full"),
+      });
+      break;
+    case "settings":
+      renderSettingsView(viewCtx);
       break;
     default:
-      setTab("overview");
+      setTab("dashboard");
   }
 }
 

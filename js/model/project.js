@@ -48,6 +48,8 @@ export class Project {
     this.importWarnings = [];
     /** Rows from validation */
     this.importValidation = { missing: [] };
+    /** Admission cohorts hidden from views/exports (dropped groups). */
+    this.hiddenStudentGroups = [];
     /** Plans that could not be matched after reopen */
     this.unmatchedPlans = [];
     /** Assessment hub: semester start + per-event tasks/notes */
@@ -83,6 +85,44 @@ export class Project {
 
   /** @returns {Array<Record<string, unknown>>} */
   getTimetableRows() {
+    const rows = this.datasets.timetable.flatMap((d) =>
+      d.rows.map((r) => ({ ...r, _sourceFile: d.filename, _sourceId: d.id }))
+    );
+    const hidden = this.getHiddenStudentGroups();
+    if (!hidden.length) return rows;
+    const blocked = new Set(hidden.map((g) => g.toLowerCase()));
+    return rows.filter((row) => {
+      const groups = String(row["Student Groups"] || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return !groups.some((g) => blocked.has(g.toLowerCase()));
+    });
+  }
+
+  getHiddenStudentGroups() {
+    return [...(this.hiddenStudentGroups || [])];
+  }
+
+  hideStudentGroup(name) {
+    const label = String(name ?? "").trim();
+    if (!label) return;
+    const exists = (this.hiddenStudentGroups || []).some((g) => g.toLowerCase() === label.toLowerCase());
+    if (!exists) {
+      this.hiddenStudentGroups = [...(this.hiddenStudentGroups || []), label];
+      this.touch();
+    }
+  }
+
+  restoreStudentGroup(name) {
+    const label = String(name ?? "").trim().toLowerCase();
+    if (!label) return;
+    this.hiddenStudentGroups = (this.hiddenStudentGroups || []).filter((g) => g.toLowerCase() !== label);
+    this.touch();
+  }
+
+  /** Raw timetable rows including hidden groups (for group manager counts). */
+  getAllTimetableRows() {
     return this.datasets.timetable.flatMap((d) =>
       d.rows.map((r) => ({ ...r, _sourceFile: d.filename, _sourceId: d.id }))
     );
@@ -161,6 +201,7 @@ export class Project {
       primaryFilename: this.primaryFilename,
       modules: this.modules,
       assessmentTracking: this.assessmentTracking,
+      hiddenStudentGroups: this.hiddenStudentGroups || [],
       datasetIndex: Object.fromEntries(
         Object.entries(this.datasets).map(([type, list]) => [
           type,
@@ -178,6 +219,7 @@ export class Project {
     project.primaryFilename = meta.primaryFilename || null;
     project.modules = { ...project.modules, ...(meta.modules || {}) };
     project.assessmentTracking = meta.assessmentTracking || createEmptyAssessmentTracking();
+    project.hiddenStudentGroups = Array.isArray(meta.hiddenStudentGroups) ? [...meta.hiddenStudentGroups] : [];
     project.plans = plans || {};
     if (datasets) project.datasets = datasets;
     return project;

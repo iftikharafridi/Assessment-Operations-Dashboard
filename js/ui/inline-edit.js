@@ -5,6 +5,7 @@ import { setDirtySilent } from "../state/store.js";
 import { normalizePlan, updatePlan } from "../planner/plans.js";
 
 const drafts = new Map();
+let blurTimer = null;
 
 function planKey(id, field) {
   return `plan::${id}::${field}`;
@@ -80,6 +81,7 @@ export function bindInlineFieldEditing({ getProject, onDirty }) {
     "focusin",
     (e) => {
       if (!isTextField(e.target)) return;
+      clearTimeout(blurTimer);
       pauseShellRender();
     },
     true
@@ -108,14 +110,16 @@ export function bindInlineFieldEditing({ getProject, onDirty }) {
     "focusout",
     (e) => {
       if (!isTextField(e.target)) return;
-      window.setTimeout(() => {
+      const el = e.target;
+      clearTimeout(blurTimer);
+      blurTimer = window.setTimeout(() => {
         if (isTableFieldFocus()) return;
         const project = getProject();
         if (!project) return;
-        commitField(e.target, project);
+        commitField(el, project);
         onDirty?.();
         resumeShellRender(true);
-      }, 0);
+      }, 150);
     },
     true
   );
