@@ -7,6 +7,7 @@ import {
   REPORT_TUTOR_WORKLOAD,
   REPORT_MISSING_INVIGILATORS,
   REPORT_ASSESSMENT_EVENTS,
+  REPORT_ASSESSMENT_SCHEDULE_SIMPLE,
   ASSESSMENT_TRACKING_SHEET,
   DASHBOARD_SETTINGS_SHEET,
   META_SHEET,
@@ -25,6 +26,11 @@ import {
 import { buildInvigilationPlanRows } from "../analytics/invigilation.js";
 import { buildAssessmentTrackingExportRows } from "../analytics/assessment.js";
 import { eventToRow, ASSESSMENT_EXPORT_COLUMNS } from "./assessment-parser.js";
+import {
+  ASSESSMENT_SCHEDULE_SIMPLE_SHEET,
+  ASSESSMENT_SCHEDULE_SIMPLE_COLUMNS,
+  buildSimplifiedAssessmentExportRows,
+} from "./assessment-simple-export.js";
 import { buildDashboardSettingsRows } from "./dashboard-settings.js";
 import { appendStyledSheet, formatExportTimestamp } from "./sheet-style.js";
 import {
@@ -145,9 +151,9 @@ export const EXPORT_PRESETS = [
   },
   {
     id: "assessmentEvents",
-    label: "Assessment events",
-    hint: "Assessment schedule from the dashboard",
-    filenamePart: "assessment-events",
+    label: "Combined assessment schedule",
+    hint: "All modules — format, semester (numeric), exact due dates or week commencing",
+    filenamePart: "combined-assessment-schedule",
     sheetKind: "assessment-events",
     requiresAssessment: true,
     build: (project) => ({
@@ -155,6 +161,27 @@ export const EXPORT_PRESETS = [
       rows: project.getAssessmentEvents().map(eventToRow),
       headers: ASSESSMENT_EXPORT_COLUMNS,
     }),
+  },
+  {
+    id: "assessmentScheduleSimple",
+    label: "Assessment Schedule - Simple",
+    hint: "Operational sheet: format, W/C, fixed deadline — one row per assessment",
+    filenamePart: "assessment-schedule-simple",
+    sheetKind: "assessment-events",
+    requiresAssessment: true,
+    build: (project) => ({
+      name: ASSESSMENT_SCHEDULE_SIMPLE_SHEET,
+      rows: buildSimplifiedAssessmentExportRows(project),
+      headers: ASSESSMENT_SCHEDULE_SIMPLE_COLUMNS,
+    }),
+  },
+  {
+    id: "obsidianAssessment",
+    label: "Export Obsidian Assessment Schedule",
+    hint: "ZIP with CSV + Obsidian DataviewJS note for your vault",
+    filenamePart: "obsidian-assessment",
+    requiresAssessment: true,
+    isObsidian: true,
   },
   {
     id: "assessmentTracking",
@@ -210,9 +237,9 @@ export const EXPORT_BUNDLES = [
   {
     id: "bundleAssessmentSummary",
     label: "Export Assessment Schedule Summary",
-    hint: "Assessment events and operational tracking.",
+    hint: "Combined schedule for all modules (exact dates + week commencing) plus tracking.",
     filenamePart: "assessment-summary",
-    sheets: ["Assessment Events", "Assessment Tracking"],
+    sheets: ["Assessment Events", "Assessment Schedule - Simple", "Assessment Tracking"],
     requiresAssessment: true,
   },
   {
@@ -263,12 +290,19 @@ function appendSheetFromPreset(wb, preset, project, options = {}) {
 export function buildWorkbookForPreset(project, presetId = "full", options = {}) {
   if (presetId === "full" || presetId === "bundleFull") return buildFullWorkbook(project, options);
 
+  const preset = getExportPreset(presetId);
+  if (preset?.isObsidian) {
+    throw new Error("OBSIDIAN_EXPORT");
+  }
+
   const bundle = EXPORT_BUNDLES.find((b) => b.id === presetId);
   if (bundle) return buildBundleWorkbook(project, bundle, options);
 
-  const preset = EXPORT_PRESETS.find((p) => p.id === presetId) || EXPORT_PRESETS[0];
+  const sheetPreset = EXPORT_PRESETS.find((p) => p.id === presetId) || EXPORT_PRESETS[0];
+  if (sheetPreset.isObsidian) throw new Error("OBSIDIAN_EXPORT");
+  if (!sheetPreset.build) return buildFullWorkbook(project, options);
   const wb = getWriteXlsx().utils.book_new();
-  appendSheetFromPreset(wb, preset, project, options);
+  appendSheetFromPreset(wb, sheetPreset, project, options);
   appendMetaSheet(wb, project, options);
   return wb;
 }
@@ -292,6 +326,7 @@ function buildBundleWorkbook(project, bundle, options = {}) {
       break;
     case "bundleAssessmentSummary":
       appendSheetFromPreset(wb, getExportPreset("assessmentEvents"), project, options);
+      appendSheetFromPreset(wb, getExportPreset("assessmentScheduleSimple"), project, options);
       appendSheetFromPreset(wb, getExportPreset("assessmentTracking"), project, options);
       break;
     case "bundleCampusPack":
@@ -431,6 +466,13 @@ function buildFullWorkbook(project, options = {}) {
       project.getAssessmentEvents().map(eventToRow),
       REPORT_ASSESSMENT_EVENTS,
       ASSESSMENT_EXPORT_COLUMNS,
+      "assessment-events"
+    );
+    appendStyledSheet(
+      wb,
+      buildSimplifiedAssessmentExportRows(project),
+      ASSESSMENT_SCHEDULE_SIMPLE_SHEET,
+      ASSESSMENT_SCHEDULE_SIMPLE_COLUMNS,
       "assessment-events"
     );
     appendStyledSheet(

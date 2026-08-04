@@ -2,20 +2,38 @@ import { esc, unique } from "../utils/dom.js";
 import { dataTable, intro, statsBar } from "../components/table.js";
 import { ASSESSMENT_STATUSES, displayAssessmentStatus } from "../config/constants.js";
 import {
-  applyAssessmentToPlans,
-  buildAssessmentSummary,
-  filterAssessmentEvents,
-  getAssessmentTypeLabel,
-  getClassTestCandidates,
   getCurrentTeachingWeek,
-  getEventDueDate,
   getUpcomingAssessments,
   resolveSemesterStart,
+  getAssessmentTypeLabel,
+  getEventDueDate,
+  getClassTestCandidates,
+  buildAssessmentSummary,
+  filterAssessmentEvents,
+  applyAssessmentToPlans,
 } from "../analytics/assessment.js";
+import { resolveAssessmentDateFields, normalizeSemesterNumber } from "../excel/assessment-parser.js";
 import { renderAssessmentSchedule, bindAssessmentScheduleView } from "../components/assessment-schedule.js";
+import {
+  renderSimplifiedAssessmentSchedule,
+  bindSimplifiedAssessmentSchedule,
+} from "../components/simplified-assessment-schedule.js";
+import {
+  renderInteractiveAssessmentSchedule,
+  bindInteractiveAssessmentSchedule,
+} from "../components/interactive-assessment-schedule.js";
 import { renderSubTabs, bindSubTabs, ASSESSMENT_SUB_VIEWS } from "../components/tabs.js";
 import { confirmAction } from "../components/dialog.js";
-import { markDirty, setDirtySilent, setAssessmentSubView } from "../state/store.js";
+import {
+  markDirty,
+  setDirtySilent,
+  setAssessmentSubView,
+  setSimplifiedAssessmentFilters,
+  setAssessmentByWeekFocus,
+  setAssessmentByWeekDensity,
+  setAssessmentByWeekViewMode,
+  setAssessmentByWeekFilters,
+} from "../state/store.js";
 import { displayAssessValue } from "../ui/inline-edit.js";
 
 function typeBadge(type) {
@@ -71,16 +89,21 @@ function renderUpcomingPanel(events, project, semesterStart, filters, state) {
 
   const rowsHtml = filtered
     .map(
-      (event) => `<tr class="${event.suggestsClassTest ? "row-planned" : ""}">
+      (event) => {
+        const dates = resolveAssessmentDateFields(event);
+        return `<tr class="${event.suggestsClassTest ? "row-planned" : ""}">
         <td><strong>${esc(event.moduleCode)}</strong><br><span class="muted small">${esc(event.moduleName)}</span></td>
+        <td>${esc(normalizeSemesterNumber(event.semester) || "—")}</td>
         <td>${esc(event.campus || "—")}</td>
         <td>${esc(event.assessmentCode || "—")}</td>
         <td>${esc(event.weekLabel)}</td>
         <td>${typeBadge(event.assessmentType)}</td>
-        <td>${esc(event.effectiveDueDate || "—")}</td>
-        <td>${esc(event.feedbackDate || event.feedbackText || "—")}</td>
+        <td>${esc(dates.exactDueDate || "—")}</td>
+        <td>${esc(dates.weekCommencing || "—")}</td>
+        <td><span class="badge ${dates.dateType === "Exact date" ? "status-ready" : "status-planning"}">${esc(dates.dateType)}</span></td>
         <td>${event.suggestsClassTest ? '<span class="badge status-planning">Yes</span>' : "—"}</td>
-      </tr>`
+      </tr>`;
+      }
     )
     .join("");
 
@@ -100,8 +123,8 @@ function renderUpcomingPanel(events, project, semesterStart, filters, state) {
       <label class="filter-check"><input type="checkbox" id="upcoming-class-test" ${af.type === "classTest" ? "checked" : ""}> Class test candidates only</label>
     </div>
     <div class="table-scroll table-scroll-sticky">${dataTable({
-      headers: ["Module", "Campus", "Assessment", "Week", "Type", "Due date", "Feedback", "Class test"],
-      rowsHtml: rowsHtml || `<tr><td colspan="8" class="muted">No deadlines in the selected window.</td></tr>`,
+      headers: ["Module", "Semester", "Campus", "Assessment", "Week", "Type", "Exact due date", "Week commencing", "Date type", "Class test"],
+      rowsHtml: rowsHtml || `<tr><td colspan="10" class="muted">No deadlines in the selected window.</td></tr>`,
       className: "data-table table-pro",
     })}</div>
   </section>`;
@@ -109,30 +132,44 @@ function renderUpcomingPanel(events, project, semesterStart, filters, state) {
 
 function renderAllAssessmentsPanel(filtered, semesterStart) {
   const rowsHtml = filtered
-    .map(
-      (event) => {
-        const due = getEventDueDate(event, semesterStart);
-        return `<tr class="${event.suggestsClassTest ? "row-planned" : ""}" data-event-id="${esc(event.id)}">
+    .map((event) => {
+      const dates = resolveAssessmentDateFields(event);
+      const semester = normalizeSemesterNumber(event.semester);
+      return `<tr class="${event.suggestsClassTest ? "row-planned" : ""}" data-event-id="${esc(event.id)}">
           <td><strong>${esc(event.moduleCode)}</strong></td>
           <td>${esc(event.moduleName)}</td>
+          <td>${esc(semester || "—")}</td>
           <td>${esc(event.weekLabel)}</td>
+          <td>${esc(dates.weekCommencing || "—")}</td>
           <td>${esc(event.assessmentCode || "—")}</td>
           <td>${typeBadge(event.assessmentType)}</td>
           <td>${esc(event.weight || "—")}</td>
-          <td>${esc(due || "—")}</td>
-          <td>${esc(event.feedbackDate || event.feedbackText || "—")}</td>
+          <td>${esc(dates.exactDueDate || "—")}</td>
+          <td><span class="badge ${dates.dateType === "Exact date" ? "status-ready" : dates.dateType === "Week commencing" ? "status-planning" : ""}">${esc(dates.dateType)}</span></td>
           <td>${event.suggestsClassTest ? "Yes" : "—"}</td>
           <td><button type="button" class="btn btn-small view-assess-detail" data-event-id="${esc(event.id)}">View details</button></td>
         </tr>`;
-      }
-    )
+    })
     .join("");
 
   return `<section class="panel-section">
-    <p class="muted small">Search using the module filter in the sidebar. Long schedule text opens in a detail dialog.</p>
+    <p class="muted small">Exact due dates are shown for submissions. Class tests and presentations usually use <strong>week commencing</strong> when no exact day is set. Semester is numeric (1, 2, 3).</p>
     <div class="table-scroll table-scroll-sticky">${dataTable({
-      headers: ["Module code", "Module name", "Week", "Assessment", "Type", "Weight", "Due date", "Feedback", "Class test", "Actions"],
-      rowsHtml: rowsHtml || `<tr><td colspan="10" class="muted">No items match the current filter.</td></tr>`,
+      headers: [
+        "Module code",
+        "Module name",
+        "Semester",
+        "Week",
+        "Week commencing",
+        "Assessment",
+        "Type",
+        "Weight",
+        "Exact due date",
+        "Date type",
+        "Class test",
+        "Actions",
+      ],
+      rowsHtml: rowsHtml || `<tr><td colspan="12" class="muted">No items match the current filter.</td></tr>`,
       className: "data-table table-pro",
     })}</div>
   </section>`;
@@ -168,7 +205,7 @@ function renderTrackingPanel(filtered, project, semesterStart) {
 export function renderAssessmentView({ project, container, state, onUpdate }) {
   const events = project.getAssessmentEvents();
   const filters = state.filters || {};
-  const subView = state.assessmentSubView || "timeline";
+  const subView = state.assessmentSubView || "simplified";
 
   if (!events.length) {
     container.innerHTML =
@@ -202,7 +239,19 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
     : `<span class="muted">Set semester start date below to calculate the current teaching week.</span>`;
 
   let subContent = "";
-  if (subView === "timeline") {
+  if (subView === "simplified") {
+    subContent = renderSimplifiedAssessmentSchedule(events, {
+      filters: state.simplifiedAssessmentFilters || {},
+    });
+  } else if (subView === "byWeek") {
+    subContent = renderInteractiveAssessmentSchedule(project, {
+      mode: "assessments",
+      viewMode: state.assessmentByWeekViewMode || "all",
+      density: state.assessmentByWeekDensity || "compact",
+      selectedWeek: state.assessmentByWeekFocus,
+      filters: state.assessmentByWeekFilters || {},
+    });
+  } else if (subView === "timeline") {
     subContent =
       renderAssessmentSchedule(project, {
         view: state.assessmentScheduleView || "this-week",
@@ -244,6 +293,33 @@ export function renderAssessmentView({ project, container, state, onUpdate }) {
     renderAssessmentDetailDialog();
 
   bindSubTabs(container, "data-sub-tab", (view) => setAssessmentSubView(view));
+
+  if (subView === "simplified") {
+    bindSimplifiedAssessmentSchedule(container, events, {
+      filters: state.simplifiedAssessmentFilters || {},
+      onFilterChange: (next) => setSimplifiedAssessmentFilters(next),
+    });
+  }
+
+  if (subView === "byWeek") {
+    bindInteractiveAssessmentSchedule(container, {
+      mode: "assessments",
+      selectedWeek: state.assessmentByWeekFocus,
+      onChange: (partial) => {
+        if (partial.filters) setAssessmentByWeekFilters(partial.filters);
+        if (partial.viewMode) setAssessmentByWeekViewMode(partial.viewMode);
+        if (partial.density) setAssessmentByWeekDensity(partial.density);
+        if (partial.goCurrent) {
+          const cur = getCurrentTeachingWeek(resolveSemesterStart(project, events));
+          setAssessmentByWeekFocus(cur && !cur.beforeSemester ? cur.weekNumber : 1);
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(partial, "selectedWeek")) {
+          setAssessmentByWeekFocus(partial.selectedWeek);
+        }
+      },
+    });
+  }
 
   if (subView === "timeline") {
     bindAssessmentScheduleView(container, {

@@ -1,3 +1,79 @@
+# Release Notes — Assessment Operations Dashboard
+
+## v2.3.0 — Semester Operations Portal export (July 2026)
+
+### Highlights
+
+- **Create/Update Complete Semester Portal** writes a compact Obsidian site from this app’s timetable, modules, teaching team, assessments, class tests, invigilation, and issues.
+- Three primary pages reduced to Teaching + Assessment centres with sticky nav and in-page view toolbars (DataviewJS).
+- Supporting tables in `_Data/`; shared CSS in `_Assets/academic-operations-os.css`.
+- **Update Data Tables Only** refreshes `_Data` without touching the four dashboards or CSS.
+- Generated content sits between `<!-- AOS:GENERATED:START/END -->` markers; manual notes outside are preserved; timestamped backups on update.
+- Assessment matrix parser now captures Course/programme, CRN, Module coordinator, and QAHE module leader when present.
+- Legacy two-file export (`03 - Assessment/20…` / `22…`) kept for one release under a details panel.
+- Student-level lookup remains out of scope (Student Data app).
+
+### Tests
+
+```bash
+node tests/academic-os-portal.test.mjs
+node tests/academic-os-md.test.mjs
+node tests/assessment-format.test.mjs
+```
+
+---
+
+## v2.2.0 — Academic Operations OS export (July 2026)
+
+### Highlights
+
+- New **Export to Academic Operations OS** on Reports & Export.
+- Selects your Obsidian **semester folder**, then updates:
+  - `03 - Assessment/20 - Assessment Schedule.md`
+  - `03 - Assessment/22 - Class Test Schedule.md`
+- Timestamped `.backup-…md` before each write; only Markdown **table rows** are replaced.
+- Assessment scheduling: W/C, Fixed deadline, Mixed; operational weeks may be outside 1–12.
+- Reference templates under `templates/academic-operations-os/`.
+- Existing Excel / CSV / Obsidian ZIP exports unchanged.
+
+### Tests
+
+```bash
+node tests/academic-os-md.test.mjs
+node tests/assessment-format.test.mjs
+```
+
+---
+
+## v2.1.0 — Simplified assessment schedule & Obsidian export (July 2026)
+
+### Highlights
+
+- **Assessment format** replaces generic labels such as “Submission / deadline” with specific formats (Report, Research Paper, Practical Skills Assessment, Presentation, Viva, etc.).
+- **Scheduling basis** clearly separates:
+  - **Week commencing (W/C)** — group/timetable-dependent (class tests, labs, presentations throughout a week)
+  - **Fixed deadline** — one common submission date for all groups
+  - **Mixed** — both (e.g. slides by a fixed date + presentations throughout the week)
+- New Assessments sub-view: **Simplified Schedule** (KPIs, filters, colour accents).
+- New Excel sheet: **`Assessment Schedule - Simple`**.
+- New export: **Export Obsidian Assessment Schedule** (ZIP with CSV + DataviewJS note).
+- Semester values remain **numeric** (`1`, `2`, `3`).
+- Teaching-week W/C is never treated as an exact deadline just because it was copied into `dueDate`.
+
+### Compatibility
+
+- Older saved workbooks still load; missing format/scheduling fields are derived on read.
+- Existing **Assessment Events** and **Assessment Tracking** sheets are retained.
+- Class-test candidate detection is unchanged.
+
+### Tests
+
+```bash
+node tests/assessment-format.test.mjs
+```
+
+---
+
 # Release Notes — Assessment Operations Dashboard v1.0.1
 
 **Release date:** June 2026  

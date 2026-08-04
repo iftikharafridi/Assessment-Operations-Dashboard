@@ -1,0 +1,9 @@
+# Assessment Schedule
+
+Use `W/C` for group-dependent activity and `Fixed deadline` for common submission dates.
+
+| Status  | Module code | Module name                 | Semester | Operational week | Cohort week | Assessment | Assessment format           | Weight | Scheduling basis | W/C        | Fixed deadline | Feedback date | Campus     | Cohort   | Group | Room  | Start time | End time | Tutor / assessor | Notes                                    |
+| ------- | ----------- | --------------------------- | -------- | ---------------: | ----------: | ---------- | --------------------------- | -----: | ---------------- | ---------- | -------------- | ------------- | ---------- | -------- | ----- | ----- | ---------- | -------- | ---------------- | ---------------------------------------- |
+| Planned | COM745      | Big Data and Infrastructure | S2 2026  |                7 |           7 | CW1        | Practical Skills Assessment |    30% | Group-based      | 2026-07-20 |                | 2026-08-17    | Birmingham | May 2026 | A     | Lab 3 | 11:00      | 13:00    | Tutor Name       | Exact day follows seminar timetable      |
+| Planned | COM745      | Big Data and Infrastructure | S2 2026  |               13 |          13 | CW2        | Report                      |    70% | Fixed deadline   |            | 2026-09-04     | 2026-10-02    | All        | All      | All   |       | 23:59      |          | Module team      | Common deadline                          |
+| Planned | COM720      | Data Science                | S2 2026  |               12 |          12 | CW2        | Presentation                |    50% | Mixed            | 2026-08-24 | 2026-08-21     | 2026-09-18    | Manchester | May 2026 | B     | M204  | 09:00      | 17:00    | Module team      | Slides deadline plus group presentations |

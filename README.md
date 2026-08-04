@@ -44,23 +44,28 @@ When the page opens you will see:
 
 ### 3. Plan class tests & assessments
 
-The dashboard has **three tabs**:
+Main tabs include **Dashboard**, **Assessments**, **Class Tests**, **Timetable**, **Invigilation**, **Reports & Export**, and **Settings / Help**.
 
-| Tab | Use for |
-|-----|---------|
-| **Overview** | Summary, data checks, weekly timetable, issues |
-| **Class tests** | Mark tests, dates, rooms, invigilators |
-| **Assessments** | Timeline, deadlines, tasks/notes, apply test weeks |
+| Assessments sub-view | Use for |
+|----------------------|---------|
+| **Simplified Schedule** | Clear operational list: assessment format, W/C vs fixed deadline |
+| **Timeline View** | Week-by-week visualisation |
+| **Upcoming Deadlines** | Next few weeks |
+| **All Assessments** | Full searchable table |
+| **Assessment Tracking** | Status, tasks, and notes |
 
-1. On **Overview**, confirm data checks are green or amber only.
-2. On **Assessments**, use the timeline and **Apply class test weeks** when ready.
-3. On **Class tests**, mark seminars, assign invigilators (type any name or pick from suggestions), and use **Who is available?** at the bottom of the tab.
+1. On **Dashboard**, confirm campus cards and KPI warnings.
+2. On **Assessments → Simplified Schedule**, review formats and dates (W/C for group-based tests; fixed deadlines for submissions).
+3. On **Class Tests**, mark seminars, assign invigilators, and check readiness.
+4. On **Reports & Export**, download Excel packs, use **Create/Update Complete Semester Portal** (Academic Operations OS), or download the Obsidian ZIP.
 
 ### 4. Save your workbook
 
-Click **Save workbook** to download an Excel file with a timestamp in the filename (for example `Timetable 2026-06-19 15-30.xlsx`).
+Click **Save workbook** (or use Reports & Export) to download an Excel file with a timestamp in the filename (for example `Timetable 2026-06-19 15-30.xlsx`).
 
 **To continue later:** upload that **saved workbook** only — it restores class test plans, assessment tracking, and notes. You do not need separate timetable and schedule files again.
+
+Saved workbooks may include **Assessment Events**, **Assessment Schedule - Simple**, and **Assessment Tracking** when an assessment schedule is loaded.
 
 ## What to commit to GitHub
 
@@ -122,6 +127,12 @@ curl -L "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs" -o vendor/xlsx/xl
 Colleagues can click **Try sample timetable** on the welcome page to load `sample/Timetable.xlsx` (or a small built-in dataset if the file is unavailable). This is for learning the tool before uploading a real timetable.
 
 See [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) for step-by-step manual tests before go-live.
+
+Automated parser checks (developers):
+
+```bash
+node tests/assessment-format.test.mjs
+```
 
 ## Troubleshooting
 

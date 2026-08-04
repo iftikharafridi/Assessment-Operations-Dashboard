@@ -2,6 +2,10 @@ import { WEEKDAYS } from "../config/constants.js";
 import { normalizePlan, planKey, updatePlan, markAsClassTest } from "../planner/plans.js";
 import { markDirty } from "../state/store.js";
 import { unique } from "../utils/dom.js";
+import {
+  normalizeSemesterNumber,
+  resolveAssessmentDateFields,
+} from "../excel/assessment-parser.js";
 
 function moduleCodeMatches(a, b) {
   return String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
@@ -376,16 +380,20 @@ export function buildAssessmentTrackingExportRows(project) {
   const semesterStart = project.getSemesterStartDate() || resolveSemesterStart(project, events);
   return events.map((event) => {
     const record = project.getAssessmentRecord(event.id);
+    const dates = resolveAssessmentDateFields(event);
     return {
       "Event ID": event.id,
       "Module code": event.moduleCode,
       "Module name": event.moduleName,
-      Week: event.weekLabel,
-      "Week commencing": event.weekCommencing,
+      Semester: normalizeSemesterNumber(event.semester),
+      "Teaching week": event.weekLabel,
+      "Week commencing": dates.weekCommencing,
       Assessment: event.assessmentCode || event.title,
       Type: getAssessmentTypeLabel(event.assessmentType),
       "Class test candidate": event.suggestsClassTest ? "Yes" : "",
-      "Due date": getEventDueDate(event, semesterStart),
+      "Exact due date": dates.exactDueDate,
+      "Date type": dates.dateType,
+      "Planning date": dates.planningDate || getEventDueDate(event, semesterStart),
       Status: record.status,
       Tasks: record.tasks,
       Notes: record.notes,

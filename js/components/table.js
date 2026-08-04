@@ -10,14 +10,15 @@ function normalizeHeader(header) {
 }
 
 function renderHeaderCell(header, sort) {
-  const { label, sortKey } = normalizeHeader(header);
-  if (!sortKey) return `<th>${esc(label)}</th>`;
+  const { label, sortKey, title } = normalizeHeader(header);
+  const titleAttr = title ? ` title="${esc(title)}"` : "";
+  if (!sortKey) return `<th${titleAttr}>${esc(label)}</th>`;
 
   const active = sort?.key === sortKey;
   const icon = active ? (sort.dir === "asc" ? "▲" : "▼") : "⇅";
   const ariaSort = active ? (sort.dir === "asc" ? "ascending" : "descending") : "none";
 
-  return `<th class="th-sortable" aria-sort="${ariaSort}">
+  return `<th class="th-sortable" aria-sort="${ariaSort}"${titleAttr}>
     <button type="button" class="sort-header-btn" data-sort-key="${esc(sortKey)}">
       <span class="sort-header-label">${esc(label)}</span>
       <span class="sort-icon" aria-hidden="true">${icon}</span>

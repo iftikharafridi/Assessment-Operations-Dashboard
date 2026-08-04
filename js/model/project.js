@@ -5,6 +5,7 @@ import {
   createEmptyAssessmentTracking,
   normalizeAssessmentRecord,
 } from "./assessment-tracking.js";
+import { enrichAssessmentEvents } from "../excel/assessment-format.js";
 let nextId = 1;
 
 function uid() {
@@ -141,7 +142,7 @@ export class Project {
   }
 
   getAssessmentEvents() {
-    return this.datasets.assessmentSchedule.flatMap((d) => d.events || []);
+    return enrichAssessmentEvents(this.datasets.assessmentSchedule.flatMap((d) => d.events || []));
   }
 
   hasAssessmentSchedule() {

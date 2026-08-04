@@ -265,7 +265,7 @@ function renderFilterBar(options, filters) {
 
   return `<div class="cts-filters">
     ${options.types.length ? `<label class="cts-filter-label">Type<select id="ass-filter-type" data-ass-filter="ass-filter-type"><option value="">All</option>${options.types.map((t) => `<option value="${esc(t)}"${t === filters.type ? " selected" : ""}>${esc(typeLabels[t] || t)}</option>`).join("")}</select></label>` : ""}
-    ${options.scheduleSemesters.length ? sel("ass-filter-sched-sem", "Schedule semester", options.scheduleSemesters, filters.scheduleSemester) : ""}
+    ${options.scheduleSemesters.length ? `<label class="cts-filter-label">Schedule semester<select id="ass-filter-sched-sem" data-ass-filter="ass-filter-sched-sem"><option value="">All</option>${options.scheduleSemesters.map((s) => `<option value="${esc(s)}"${String(s) === String(filters.scheduleSemester) ? " selected" : ""}>${/^\d+$/.test(String(s)) ? `Semester ${esc(s)}` : esc(s)}</option>`).join("")}</select></label>` : ""}
     ${options.campuses.length ? sel("ass-filter-campus", "Campus", options.campuses, filters.campus) : ""}
     ${options.siteCodes.length ? sel("ass-filter-site", "Site", options.siteCodes, filters.siteCode) : ""}
     ${options.cohortCodes.length ? `<label class="cts-filter-label">Cohort intake<select id="ass-filter-cohort" data-ass-filter="ass-filter-cohort"><option value="">All</option>${options.cohortCodes.map((c) => `<option value="${esc(c.code)}"${c.code === filters.cohortCode ? " selected" : ""}>${esc(c.code)} (${esc(c.label)})</option>`).join("")}</select></label>` : ""}

@@ -1,7 +1,25 @@
 /** Parse QAHE matrix-style assessment schedule sheets into normalised events. */
 
+import {
+  deriveAssessmentFormat,
+  enrichAssessmentEvent,
+  enrichAssessmentEvents,
+  extractDueAndFeedback,
+  extractMainTitleLine,
+  parseUkDateFragment as parseUkDateFragmentFmt,
+  resolveAssessmentDateFields as resolveAssessmentDateFieldsFmt,
+  resolveSchedulingBasis,
+} from "./assessment-format.js";
+
+export {
+  deriveAssessmentFormat,
+  enrichAssessmentEvent,
+  enrichAssessmentEvents,
+  resolveSchedulingBasis,
+};
+
 const MODULE_CODE_RE = /^[A-Z]{3}\d{3}[A-Z]?$/i;
-const WEEK_ROW_RE = /^Week\s*(\d+)/i;
+const WEEK_ROW_RE = /^Week\s*(-?\d+)/i;
 
 /**
  * @typedef {Object} AssessmentEvent
@@ -15,6 +33,9 @@ const WEEK_ROW_RE = /^Week\s*(\d+)/i;
  * @property {string} weekCommencing
  * @property {string} assessmentCode
  * @property {string} assessmentType
+ * @property {string} assessmentFormat
+ * @property {"weekCommencing"|"fixedDeadline"|"mixed"|"notSpecified"} schedulingBasis
+ * @property {string} exactDueDate
  * @property {string} title
  * @property {string} weight
  * @property {string} dueText
@@ -41,24 +62,7 @@ function formatIsoDate(date) {
 }
 
 function parseUkDateFragment(text) {
-  const raw = String(text ?? "").trim();
-  if (!raw) return "";
-
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return raw;
-
-  const match = raw.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})/i);
-  if (!match) return "";
-
-  const months = {
-    january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
-    july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
-  };
-  const month = months[match[2].toLowerCase()];
-  if (!month) return "";
-  const day = String(match[1]).padStart(2, "0");
-  const monthStr = String(month).padStart(2, "0");
-  return `${match[3]}-${monthStr}-${day}`;
+  return parseUkDateFragmentFmt(text);
 }
 
 export function classifyAssessmentType(text) {
@@ -98,18 +102,12 @@ function parseAssessmentBlock(rawText, context) {
   const assessmentCode = (text.match(/^(CW\d[ab]?)/i) || text.match(/\b(CW\d[ab]?)\b/i))?.[1]?.toUpperCase() || "";
   const weightMatch = text.match(/\((\d+(?:\.\d+)?)\s*%\)/);
   const weight = weightMatch ? `${weightMatch[1]}%` : "";
-  const dueMatch = text.match(/Due:\s*([\s\S]*?)(?:\n\s*Feedback:|$)/i);
-  const feedbackMatch = text.match(/Feedback(?::|\s+by)?\s*([\s\S]*?)$/i);
-  const dueText = dueMatch ? dueMatch[1].trim().replace(/\s+/g, " ") : "";
-  const feedbackText = feedbackMatch ? feedbackMatch[1].trim().replace(/\s+/g, " ") : "";
-  const titleLine = text.split("\n").map((l) => l.trim()).find(Boolean) || text.slice(0, 120);
+  const { dueText, dueParts, feedbackText } = extractDueAndFeedback(text);
+  const titleLine = extractMainTitleLine(text);
   const assessmentType = classifyAssessmentType(text);
   const classTest = suggestsClassTest(assessmentType, text);
-
-  let dueDate = parseUkDateFragment(dueText);
-  if (!dueDate && /during week \d+ lab/i.test(dueText)) {
-    dueDate = context.weekCommencing || "";
-  }
+  const assessmentFormat = deriveAssessmentFormat(text, titleLine, assessmentCode);
+  const exactFromDue = dueParts.map(parseUkDateFragment).find(Boolean) || parseUkDateFragment(dueText);
 
   const id = [
     context.moduleCode,
@@ -118,27 +116,34 @@ function parseAssessmentBlock(rawText, context) {
     context.col,
   ].join("|");
 
-  return {
+  const base = {
     id,
     moduleCode: context.moduleCode,
     moduleName: context.moduleName,
-    semester: context.semester,
+    semester: normalizeSemesterNumber(context.semester),
     scheduleTitle: context.scheduleTitle,
     weekLabel: context.weekLabel,
     weekNumber: context.weekNumber,
-    weekCommencing: context.weekCommencing,
+    weekCommencing: context.weekCommencing || "",
     assessmentCode,
     assessmentType,
+    assessmentFormat,
     title: titleLine,
     weight,
     dueText,
-    dueDate,
+    dueDate: exactFromDue || "",
     feedbackText,
     feedbackDate: parseUkDateFragment(feedbackText),
     rawText: text,
     suggestsClassTest: classTest,
     sheetName: context.sheetName,
+    course: context.course || "",
+    crn: context.crn || "",
+    moduleCoordinator: context.moduleCoordinator || "",
+    qaheModuleLeader: context.qaheModuleLeader || "",
   };
+
+  return enrichAssessmentEvent(base);
 }
 
 function splitAssessmentBlocks(text) {
@@ -158,19 +163,70 @@ function findScheduleTitle(grid) {
   return "";
 }
 
+/** Map "One"/"Two"/… or "Semester 1" → numeric string "1", "2", … */
+export function normalizeSemesterNumber(value) {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  if (/^\d+$/.test(s)) return s;
+
+  const words = {
+    one: "1",
+    two: "2",
+    three: "3",
+    four: "4",
+    five: "5",
+    first: "1",
+    second: "2",
+    third: "3",
+  };
+
+  const lower = s.toLowerCase().replace(/^semester\s*/i, "").replace(/["']/g, "").trim();
+  if (words[lower]) return words[lower];
+  if (/^\d+$/.test(lower)) return lower;
+
+  const match = s.match(/semester\s*["']?(one|two|three|four|five|\d+)/i);
+  if (match) return words[match[1].toLowerCase()] || match[1];
+
+  return s;
+}
+
 function semesterAt(grid, rowIndex, colIndex) {
   for (let r = rowIndex; r >= Math.max(0, rowIndex - 4); r--) {
     for (let c = colIndex; c >= 0; c--) {
       const text = cellText(grid[r][c]);
-      const match = text.match(/Semester\s*["']?(One|Two|Three)/i);
-      if (match) return match[1];
+      const match = text.match(/Semester\s*["']?(One|Two|Three|Four|Five|\d+)/i);
+      if (match) return normalizeSemesterNumber(match[1]);
     }
   }
   return "";
 }
 
+const MODULE_META_LABELS = [
+  { key: "course", re: /^(course|programme|program|course\s*\/\s*programme)$/i },
+  { key: "crn", re: /^crn$/i },
+  { key: "moduleCoordinator", re: /^(module\s*coordinator|coordinator)$/i },
+  { key: "qaheModuleLeader", re: /^(qahe\s*module\s*leader|module\s*leader)$/i },
+];
+
+/** Scan nearby label cells in the Module Code column for course/CRN/coordinator rows. */
+function findModuleMetaRows(grid, labelCol, codeRow) {
+  /** @type {Record<string, number>} */
+  const rows = { name: -1 };
+  const from = Math.max(0, codeRow - 2);
+  const to = Math.min(grid.length - 1, codeRow + 12);
+  for (let r = from; r <= to; r++) {
+    const label = cellText(grid[r]?.[labelCol]);
+    if (!label) continue;
+    if (/^Module Name$/i.test(label)) rows.name = r;
+    for (const meta of MODULE_META_LABELS) {
+      if (meta.re.test(label)) rows[meta.key] = r;
+    }
+  }
+  return rows;
+}
+
 function findModuleColumns(grid) {
-  /** @type {Array<{col:number, row:number, code:string, name:string, semester:string}>} */
+  /** @type {Array<{col:number, row:number, code:string, name:string, semester:string, course:string, crn:string, moduleCoordinator:string, qaheModuleLeader:string}>} */
   const modules = [];
 
   for (let r = 0; r < grid.length; r++) {
@@ -178,13 +234,7 @@ function findModuleColumns(grid) {
     for (let c = 0; c < row.length; c++) {
       if (!/^Module Code$/i.test(cellText(row[c]))) continue;
 
-      let nameRow = -1;
-      for (let nr = r + 1; nr < Math.min(grid.length, r + 6); nr++) {
-        if (/^Module Name$/i.test(cellText(grid[nr]?.[c]))) {
-          nameRow = nr;
-          break;
-        }
-      }
+      const metaRows = findModuleMetaRows(grid, c, r);
 
       for (let mc = c + 1; mc < row.length; mc++) {
         const code = cellText(row[mc]).toUpperCase();
@@ -196,13 +246,19 @@ function findModuleColumns(grid) {
 
         if (!MODULE_CODE_RE.test(code)) continue;
 
-        const moduleName = nameRow >= 0 ? cellText(grid[nameRow][mc]) : "";
+        const moduleName = metaRows.name >= 0 ? cellText(grid[metaRows.name][mc]) : "";
         modules.push({
           col: mc,
           row: r,
           code,
           name: moduleName,
           semester: semesterAt(grid, r, mc),
+          course: metaRows.course >= 0 ? cellText(grid[metaRows.course][mc]) : "",
+          crn: metaRows.crn >= 0 ? cellText(grid[metaRows.crn][mc]) : "",
+          moduleCoordinator:
+            metaRows.moduleCoordinator >= 0 ? cellText(grid[metaRows.moduleCoordinator][mc]) : "",
+          qaheModuleLeader:
+            metaRows.qaheModuleLeader >= 0 ? cellText(grid[metaRows.qaheModuleLeader][mc]) : "",
         });
       }
     }
@@ -271,13 +327,17 @@ export function parseAssessmentGrid(grid, sheetName = "") {
           weekCommencing: week.weekCommencing,
           sheetName,
           col: mod.col,
+          course: mod.course || "",
+          crn: mod.crn || "",
+          moduleCoordinator: mod.moduleCoordinator || "",
+          qaheModuleLeader: mod.qaheModuleLeader || "",
         });
         if (event) events.push(event);
       }
     }
   }
 
-  return events.sort(
+  return enrichAssessmentEvents(events).sort(
     (a, b) =>
       a.moduleCode.localeCompare(b.moduleCode) ||
       a.weekNumber - b.weekNumber ||
@@ -397,7 +457,7 @@ export function parseAssessmentEventsFromExportRows(rows, sheetName = "", option
     const moduleCode = String(row["Module code"] ?? "").trim().toUpperCase();
     if (!moduleCode) continue;
 
-    const weekLabel = String(row.Week ?? row["Test week"] ?? "").trim();
+    const weekLabel = String(row["Teaching week"] ?? row.Week ?? row["Test week"] ?? "").trim();
     const weekMatch = weekLabel.match(/Week\s*(\d+)/i);
     const weekNumber = weekMatch ? Number(weekMatch[1]) : 0;
     const assessmentType = normalizeExportType(row.Type);
@@ -408,17 +468,20 @@ export function parseAssessmentEventsFromExportRows(rows, sheetName = "", option
       id: String(row["Event ID"] ?? "").trim() || `${moduleCode}|${weekLabel}|${assessmentCode}|${sheetName}`,
       moduleCode,
       moduleName: String(row["Module name"] ?? "").trim(),
-      semester: String(row.Semester ?? "").trim(),
+      semester: normalizeSemesterNumber(row.Semester ?? ""),
       scheduleTitle: "",
       weekLabel: weekLabel || (weekNumber ? `Week ${weekNumber}` : ""),
       weekNumber,
       weekCommencing: String(row["Week commencing"] ?? "").slice(0, 10),
       assessmentCode,
       assessmentType,
+      assessmentFormat: String(row["Assessment format"] ?? row.Type ?? "").trim(),
+      schedulingBasis: String(row["Scheduling basis"] ?? "").trim(),
       title: String(row.Assessment ?? rawText).split("\n")[0].trim(),
       weight: String(row.Weight ?? "").trim(),
-      dueText: String(row.Due ?? "").trim(),
-      dueDate: String(row["Due date"] ?? "").slice(0, 10),
+      dueText: String(row["Due (source text)"] ?? row.Due ?? "").trim(),
+      dueDate: String(row["Exact due date"] ?? row["Due date"] ?? row["Planning date"] ?? "").slice(0, 10),
+      exactDueDate: String(row["Exact due date"] ?? "").slice(0, 10),
       feedbackText: String(row.Feedback ?? "").trim(),
       feedbackDate: "",
       rawText: rawText || String(row.Assessment ?? "").trim(),
@@ -434,7 +497,7 @@ export function parseAssessmentEventsFromExportRows(rows, sheetName = "", option
     events.push(event);
   }
 
-  const deduped = dedupeAssessmentEvents(events, options);
+  const deduped = enrichAssessmentEvents(dedupeAssessmentEvents(events, options));
   return {
     events: deduped,
     rows: deduped.map(eventToRow),
@@ -469,35 +532,49 @@ export const ASSESSMENT_EXPORT_COLUMNS = [
   "Module code",
   "Module name",
   "Semester",
-  "Week",
+  "Teaching week",
   "Week commencing",
   "Assessment",
   "Type",
+  "Assessment format",
+  "Scheduling basis",
   "Weight",
-  "Due",
-  "Due date",
+  "Exact due date",
+  "Date type",
+  "Planning date",
+  "Due (source text)",
   "Feedback",
   "Class test candidate",
   "Details",
   "Sheet",
 ];
 
+export function resolveAssessmentDateFields(event) {
+  return resolveAssessmentDateFieldsFmt(event);
+}
+
 function eventToRow(event) {
+  const enriched = enrichAssessmentEvent(event);
+  const dates = resolveAssessmentDateFields(enriched);
   return {
-    "Module code": event.moduleCode,
-    "Module name": event.moduleName,
-    Semester: event.semester,
-    Week: event.weekLabel,
-    "Week commencing": event.weekCommencing,
-    Assessment: event.assessmentCode || event.title,
-    Type: event.assessmentType,
-    Weight: event.weight,
-    Due: event.dueText,
-    "Due date": event.dueDate,
-    Feedback: event.feedbackText,
-    "Class test candidate": event.suggestsClassTest ? "Yes" : "",
-    Details: event.rawText,
-    Sheet: event.sheetName,
+    "Module code": enriched.moduleCode,
+    "Module name": enriched.moduleName,
+    Semester: normalizeSemesterNumber(enriched.semester),
+    "Teaching week": enriched.weekLabel,
+    "Week commencing": dates.weekCommencing,
+    Assessment: enriched.assessmentCode || enriched.title,
+    Type: enriched.assessmentFormat || enriched.assessmentType,
+    "Assessment format": enriched.assessmentFormat,
+    "Scheduling basis": enriched.schedulingBasis,
+    Weight: enriched.weight,
+    "Exact due date": dates.exactDueDate,
+    "Date type": dates.dateType,
+    "Planning date": dates.planningDate,
+    "Due (source text)": enriched.dueText,
+    Feedback: enriched.feedbackText,
+    "Class test candidate": enriched.suggestsClassTest ? "Yes" : "",
+    Details: enriched.rawText,
+    Sheet: enriched.sheetName,
   };
 }
 

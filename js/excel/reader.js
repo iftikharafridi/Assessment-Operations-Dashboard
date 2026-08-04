@@ -183,6 +183,11 @@ export function ingestWorkbooks(files) {
   for (const { workbook, filename } of files) {
     const plansSheet = workbook.Sheets[PLAN_SHEET];
     const metaSheet = workbook.Sheets[META_SHEET];
+    // Saved dashboard workbooks already have Assessment Events — skip matrix copies there.
+    // Original QAHE assessment schedules use sheet names like "S3 … modules" and must NOT be skipped.
+    const isSavedDashboard = Boolean(
+      plansSheet || metaSheet || workbook.Sheets[REPORT_ASSESSMENT_EVENTS] || workbook.Sheets[DASHBOARD_SETTINGS_SHEET]
+    );
 
     let invigilatorsRestored = 0;
     if (plansSheet) Object.assign(project.plans, parsePlansFromSheet(plansSheet));
@@ -249,11 +254,12 @@ export function ingestWorkbooks(files) {
     }
 
     let fileLoaded = false;
+    let assessmentSheetsTried = 0;
 
     for (const sheetName of workbook.SheetNames) {
       if (GENERATED_SHEETS.has(sheetName)) continue;
-      if (isDuplicateAssessmentExportSheet(sheetName)) continue;
-      if (isRedundantAssessmentExportSheet(sheetName)) continue;
+      if (isSavedDashboard && isDuplicateAssessmentExportSheet(sheetName)) continue;
+      if (isSavedDashboard && isRedundantAssessmentExportSheet(sheetName)) continue;
       if (sheetName === REPORT_ASSESSMENT_EVENTS && project.getAssessmentEvents().length) continue;
 
       const sheet = workbook.Sheets[sheetName];
@@ -292,6 +298,7 @@ export function ingestWorkbooks(files) {
           continue;
         }
       } else if (fileType === "assessmentSchedule") {
+        assessmentSheetsTried += 1;
         const parsed = parseAssessmentSheet(XLSX, sheet, sheetName, assessmentDedupeOptions(project));
         if (!parsed.events.length) continue;
         const merged = upsertAssessmentSchedule(
@@ -342,8 +349,22 @@ export function ingestWorkbooks(files) {
           fileLoaded = true;
         }
       } else if (!fileLoaded) {
-        warnings.push(`We couldn't find a timetable in "${filename}". Please check the file includes module, campus, weekday, and tutor columns.`);
+        if (looksLikeAssessmentScheduleFile(filename) || assessmentSheetsTried > 0) {
+          warnings.push(
+            `We couldn't read assessment items from "${filename}". Check that the workbook has module columns and Week rows (QAHE matrix assessment schedule).`
+          );
+        } else {
+          warnings.push(
+            `We couldn't find a timetable in "${filename}". Please check the file includes module, campus, weekday, and tutor columns.`
+          );
+        }
       }
+    }
+
+    if (fileLoaded && project.getAssessmentEvents().length && !project.getTimetableRows().length) {
+      warnings.push(
+        `Assessment schedule is loaded from "${filename}", but you still need a timetable. Upload your timetable Excel file (or drop both files together).`
+      );
     }
   }
 
@@ -351,6 +372,12 @@ export function ingestWorkbooks(files) {
   finalizeProject(project);
   appendInvigilatorWarnings(project);
   return project;
+}
+
+function looksLikeAssessmentScheduleFile(filename) {
+  const n = String(filename || "").toLowerCase();
+  if (/timetable/.test(n) && !/assessment/.test(n)) return false;
+  return /assessment/.test(n) || (/schedule/.test(n) && !/timetable/.test(n));
 }
 
 function appendInvigilatorWarnings(project) {

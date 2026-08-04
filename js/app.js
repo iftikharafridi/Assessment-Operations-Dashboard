@@ -26,6 +26,20 @@ import { filterTimetableRows, sanitizeFilters } from "./analytics/filters.js";
 import { ingestWorkbooks, readWorkbook } from "./excel/reader.js";
 import { finalizeProject } from "./model/finalize.js";
 import { downloadProjectExcel } from "./excel/writer.js";
+import { downloadObsidianAssessmentPack } from "./excel/obsidian-export.js";
+import {
+  exportAcademicOperationsOs,
+  pickSemesterFolder,
+  formatAcademicOsSummaryHtml,
+  isDirectoryPickerSupported,
+} from "./obsidian/academic-os-export.js";
+import {
+  exportAcademicOperationsPortal,
+  formatPortalSummaryHtml,
+  PORTAL_MODE_COMPLETE,
+  PORTAL_MODE_DATA_ONLY,
+} from "./obsidian/portal/export.js";
+import { getExportPreset } from "./excel/export-presets.js";
 import { isExcelReaderReady, isStyledExcelReady, EXCEL_STYLE_ERROR_MSG } from "./excel/xlsx.js";
 import { renderExportMenu, bindExportMenu } from "./components/export-menu.js";
 import { loadSampleTimetable } from "./data/sample-loader.js";
@@ -69,6 +83,22 @@ function requireExcelReader() {
 
 function runExport(project, presetId, extraOptions = {}) {
   const state = getState();
+  const preset = getExportPreset(presetId);
+  if (preset?.isObsidian || presetId === "obsidianAssessment") {
+    try {
+      downloadObsidianAssessmentPack(project);
+      setLastExportAt(new Date().toLocaleString());
+    } catch (err) {
+      console.error("Obsidian export failed:", err);
+      if (alertsEl()) {
+        alertsEl().innerHTML = `<div class="alert alert-error" role="alert">
+          <strong>Could not export Obsidian pack</strong>
+          <p>${err?.message || "Something went wrong."}</p>
+        </div>`;
+      }
+    }
+    return;
+  }
   const options = {
     preset: presetId,
     ...extraOptions,
@@ -365,6 +395,56 @@ function renderMain() {
         ...viewCtx,
         onExport: (presetId, extra = {}) => runExport(project, presetId, extra),
         onSave: () => runExport(project, "full"),
+        onAcademicOsExport: async (resultHost, exportOptions = {}) => {
+          if (!isDirectoryPickerSupported()) {
+            if (resultHost) {
+              resultHost.innerHTML = `<div class="alert alert-error" role="alert">
+                <strong>Folder export not available</strong>
+                <p>Use Chrome or Edge on desktop to select your Academic Operations OS semester folder.</p>
+              </div>`;
+            }
+            return;
+          }
+          try {
+            if (resultHost) {
+              resultHost.innerHTML = `<div class="alert alert-info" role="status"><p>Select your semester folder…</p></div>`;
+            }
+            const folder = await pickSemesterFolder();
+            const mode = exportOptions.mode || "complete";
+            if (resultHost) {
+              resultHost.innerHTML = `<div class="alert alert-info" role="status"><p>${
+                mode === "legacy"
+                  ? "Updating legacy assessment tables…"
+                  : mode === "dataOnly"
+                    ? "Updating portal data tables…"
+                    : "Building semester portal…"
+              }</p></div>`;
+            }
+            let summary;
+            if (mode === "legacy") {
+              summary = await exportAcademicOperationsOs(project, folder);
+              if (resultHost) resultHost.innerHTML = formatAcademicOsSummaryHtml(summary);
+            } else {
+              summary = await exportAcademicOperationsPortal(project, folder, {
+                mode: mode === "dataOnly" ? PORTAL_MODE_DATA_ONLY : PORTAL_MODE_COMPLETE,
+              });
+              if (resultHost) resultHost.innerHTML = formatPortalSummaryHtml(summary);
+            }
+            setLastExportAt(new Date().toLocaleString());
+          } catch (err) {
+            if (err?.name === "AbortError") {
+              if (resultHost) resultHost.innerHTML = "";
+              return;
+            }
+            console.error("Academic OS export failed:", err);
+            if (resultHost) {
+              resultHost.innerHTML = `<div class="alert alert-error" role="alert">
+                <strong>Could not export to Academic Operations OS</strong>
+                <p>${err?.message || "Something went wrong."}</p>
+              </div>`;
+            }
+          }
+        },
       });
       break;
     case "settings":

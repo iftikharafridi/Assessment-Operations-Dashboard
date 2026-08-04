@@ -6,7 +6,13 @@ import { normalizeTabId } from "../components/tabs.js";
 const state = {
   project: null,
   activeTab: "welcome",
-  assessmentSubView: "timeline",
+  assessmentSubView: "simplified",
+  simplifiedAssessmentFilters: {
+    module: "",
+    semester: "",
+    format: "",
+    basis: "",
+  },
   timetableCampus: "",
   trackerDetailId: null,
   lastExportAt: null,
@@ -36,6 +42,31 @@ const state = {
     cohortCode: "",
     studyYear: "",
     studySemester: "",
+  },
+  /** Focused operational week for Assessments → By Week (null = auto / current) */
+  assessmentByWeekFocus: null,
+  /** Obsidian-parity schedule: 'all' | 'single' | 'calendar' */
+  assessmentByWeekViewMode: "all",
+  /** 'compact' | 'comfortable' */
+  assessmentByWeekDensity: "compact",
+  assessmentByWeekFilters: {
+    search: "",
+    module: "all",
+    format: "all",
+    basis: "all",
+    hideEmpty: false,
+  },
+  /** Class Tests tab — interactive week/calendar schedule */
+  classTestByWeekFocus: null,
+  classTestByWeekViewMode: "all",
+  classTestByWeekDensity: "compact",
+  classTestByWeekFilters: {
+    search: "",
+    module: "all",
+    campus: "all",
+    group: "all",
+    tutor: "all",
+    hideEmpty: false,
   },
   dirty: false,
   excelReaderReady: true,
@@ -130,6 +161,54 @@ export function adjustAssessmentScheduleWeekOffset(delta) {
 
 export function setAssessmentSubView(view) {
   emit({ assessmentSubView: view });
+}
+
+export function setSimplifiedAssessmentFilters(partial) {
+  emit({
+    simplifiedAssessmentFilters: { ...state.simplifiedAssessmentFilters, ...partial },
+  });
+}
+
+export function setAssessmentByWeekFocus(weekNum) {
+  emit({ assessmentByWeekFocus: weekNum == null || weekNum === "" ? null : Number(weekNum) });
+}
+
+export function setAssessmentByWeekDensity(density) {
+  emit({
+    assessmentByWeekDensity: density === "comfortable" ? "comfortable" : "compact",
+  });
+}
+
+export function setAssessmentByWeekViewMode(mode) {
+  const allowed = ["all", "single", "calendar"];
+  emit({ assessmentByWeekViewMode: allowed.includes(mode) ? mode : "all" });
+}
+
+export function setAssessmentByWeekFilters(partial) {
+  emit({
+    assessmentByWeekFilters: { ...state.assessmentByWeekFilters, ...partial },
+  });
+}
+
+export function setClassTestByWeekFocus(weekNum) {
+  emit({ classTestByWeekFocus: weekNum == null || weekNum === "" ? null : Number(weekNum) });
+}
+
+export function setClassTestByWeekDensity(density) {
+  emit({
+    classTestByWeekDensity: density === "comfortable" ? "comfortable" : "compact",
+  });
+}
+
+export function setClassTestByWeekViewMode(mode) {
+  const allowed = ["all", "single", "calendar"];
+  emit({ classTestByWeekViewMode: allowed.includes(mode) ? mode : "all" });
+}
+
+export function setClassTestByWeekFilters(partial) {
+  emit({
+    classTestByWeekFilters: { ...state.classTestByWeekFilters, ...partial },
+  });
 }
 
 export function setTimetableCampus(campus) {

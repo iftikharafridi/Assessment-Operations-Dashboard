@@ -1,6 +1,6 @@
 /** @typedef {'timetable'|'staff'|'rooms'|'assessmentSchedule'|'unknown'} FileType */
 
-export const APP_VERSION = "2.0.0";
+export const APP_VERSION = "2.3.0";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -42,6 +42,7 @@ export const REPORT_MISSING_INVIGILATORS = "Missing Invigilators";
 export const REPORT_CAMPUS_SUMMARY = "Campus Summary";
 export const REPORT_TUTOR_WORKLOAD = "Tutor Workload";
 export const REPORT_ASSESSMENT_EVENTS = "Assessment Events";
+export const REPORT_ASSESSMENT_SCHEDULE_SIMPLE = "Assessment Schedule - Simple";
 export const ASSESSMENT_TRACKING_SHEET = "Assessment Tracking";
 export const META_SHEET = "_ProjectMeta";
 
@@ -133,6 +134,7 @@ export const GENERATED_SHEETS = new Set([
   REPORT_CAMPUS_SUMMARY,
   REPORT_TUTOR_WORKLOAD,
   REPORT_ASSESSMENT_EVENTS,
+  REPORT_ASSESSMENT_SCHEDULE_SIMPLE,
   ASSESSMENT_TRACKING_SHEET,
   WEEKLY_TIMETABLE_SHEET,
   META_SHEET,

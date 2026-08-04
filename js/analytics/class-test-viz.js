@@ -70,6 +70,7 @@ export function buildClassTestItems(project, { semesterStart = "" } = {}) {
         start: slot.start,
         end: slot.end,
         room: plan.room || session.Room || "",
+        tutor: plan.leadTutor || session.Staff || "",
         invigilator: plan.invigilator || "",
         status: plan.status,
         size: session.Size || "",

@@ -3,7 +3,13 @@ import { parseGroups } from "../utils/groups.js";
 import { esc } from "../utils/dom.js";
 import { dataTable, intro, bindTableSort, toggleSortKey } from "../components/table.js";
 import { sortTrackerRows, TRACKER_SORT_DEFAULT } from "../analytics/tracker-sort.js";
-import { setTrackerSort } from "../state/store.js";
+import {
+  setTrackerSort,
+  setClassTestByWeekFocus,
+  setClassTestByWeekDensity,
+  setClassTestByWeekViewMode,
+  setClassTestByWeekFilters,
+} from "../state/store.js";
 import {
   clearAllPlans,
   normalizePlan,
@@ -16,6 +22,11 @@ import { renderBulkBar, bindBulkBar } from "../planner/bulk.js";
 import { sessionHasConflict } from "../analytics/dashboard.js";
 import { moduleSeminarNotice } from "../analytics/filters.js";
 import { renderClassTestSchedule, bindClassTestScheduleView } from "../components/class-test-schedule.js";
+import {
+  renderInteractiveAssessmentSchedule,
+  bindInteractiveAssessmentSchedule,
+} from "../components/interactive-assessment-schedule.js";
+import { getCurrentTeachingWeek, resolveSemesterStart } from "../analytics/assessment.js";
 import { openClassTestDrawer, readinessBadges } from "../components/class-test-drawer.js";
 
 function statusBadge(status) {
@@ -111,6 +122,13 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
   ];
 
   container.innerHTML = `
+    ${renderInteractiveAssessmentSchedule(project, {
+      mode: "classTests",
+      viewMode: state.classTestByWeekViewMode || "all",
+      density: state.classTestByWeekDensity || "compact",
+      selectedWeek: state.classTestByWeekFocus,
+      filters: state.classTestByWeekFilters || {},
+    })}
     ${renderClassTestSchedule(project, {
       view: state.classTestScheduleView || "this-week",
       filters: state.classTestScheduleFilters || {},
@@ -135,6 +153,25 @@ export function renderTrackerView({ project, rows, container, state, onUpdate, o
         <button id="clear-plans" class="btn btn-danger btn-small">Clear all plans</button>
       </div>
     </div>`;
+
+  bindInteractiveAssessmentSchedule(container, {
+    mode: "classTests",
+    selectedWeek: state.classTestByWeekFocus,
+    onChange: (partial) => {
+      if (partial.filters) setClassTestByWeekFilters(partial.filters);
+      if (partial.viewMode) setClassTestByWeekViewMode(partial.viewMode);
+      if (partial.density) setClassTestByWeekDensity(partial.density);
+      if (partial.goCurrent) {
+        const events = project.getAssessmentEvents?.() || [];
+        const cur = getCurrentTeachingWeek(resolveSemesterStart(project, events));
+        setClassTestByWeekFocus(cur && !cur.beforeSemester ? cur.weekNumber : 1);
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(partial, "selectedWeek")) {
+        setClassTestByWeekFocus(partial.selectedWeek);
+      }
+    },
+  });
 
   bindClassTestScheduleView(container, {
     onViewChange: (view) => onUpdate(view, "classTestView"),

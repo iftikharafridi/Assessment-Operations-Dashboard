@@ -10,6 +10,7 @@ import { parseFlexibleDate, weekdayName, weekCommencingMonday, dateSortKey, form
 import { teachingWeekCommencing } from "./class-test-viz.js";
 import { unique } from "../utils/dom.js";
 import { WEEKDAYS } from "../config/constants.js";
+import { normalizeSemesterNumber } from "../excel/assessment-parser.js";
 
 function moduleCodeMatches(a, b) {
   return String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
@@ -46,7 +47,7 @@ export function buildAssessmentScheduleItems(project, { semesterStart = "" } = {
       dueDate: due,
       dueDateParsed: dueParsed,
       weekday: dueParsed ? weekdayName(dueParsed) : "",
-      scheduleSemester: event.semester || "",
+      scheduleSemester: normalizeSemesterNumber(event.semester || ""),
       suggestsClassTest: event.suggestsClassTest,
       status: record.status,
       tasks: record.tasks,
@@ -162,12 +163,19 @@ export function groupAssessmentByCohort(items) {
 export function groupAssessmentByScheduleSemester(items) {
   const buckets = new Map();
   for (const item of items) {
-    const key = item.scheduleSemester || "(No semester label)";
-    if (!buckets.has(key)) buckets.set(key, { name: key, items: [] });
+    const num = String(item.scheduleSemester || "").trim();
+    const key = num || "(No semester label)";
+    const name = num && /^\d+$/.test(num) ? `Semester ${num}` : key;
+    if (!buckets.has(key)) buckets.set(key, { name, items: [] });
     buckets.get(key).items.push(item);
   }
   for (const b of buckets.values()) b.items.sort(compareAssessmentItems);
-  return [...buckets.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...buckets.values()].sort((a, b) => {
+    const an = Number(String(a.name).replace(/\D/g, "")) || 0;
+    const bn = Number(String(b.name).replace(/\D/g, "")) || 0;
+    if (an && bn) return an - bn;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function buildAssessmentSemesterColumns(items, { semesterStart = "", currentWeek = null, maxWeeks = 14 } = {}) {
@@ -245,7 +253,7 @@ export function listAssessmentFilterOptions(items) {
     cohortCodes: [...cohortMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([code, label]) => ({ code, label })),
     studyYears: [...studyYears].sort(),
     semesters: [...semesters].sort((a, b) => Number(a) - Number(b)),
-    scheduleSemesters: [...scheduleSemesters].sort(),
+    scheduleSemesters: [...scheduleSemesters].sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b))),
     types: [...types].sort(),
   };
 }

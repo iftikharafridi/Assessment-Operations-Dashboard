@@ -1,3 +1,61 @@
+# Manual Testing Checklist — Assessment Operations Dashboard
+
+## v2.3.0 — Semester Operations Portal (quick checks)
+
+- [ ] Footer shows **Version 2.3.0**
+- [ ] **Reports & Export → Create/Update Complete Semester Portal** prompts for a semester folder (Chrome/Edge)
+- [ ] Empty folder gains `10/20/30` pages, `_Data/`, and `_Assets/academic-operations-os.css`
+- [ ] **Update Data Tables Only** refreshes `_Data` without changing the three pages or CSS
+- [ ] Manual notes outside `<!-- AOS:GENERATED -->` markers survive a re-export
+- [ ] On overwrite, timestamped backups appear under `_Backups/` (folder created only when needed)
+- [ ] In Obsidian (Dataview enabled): Teaching/Assessment/Operations toolbars switch views in-page
+- [ ] Teaching Timetable table has **no Room column**; class-test rooms still appear when planned
+- [ ] Legacy two-file export still available under the details panel
+- [ ] Excel / Obsidian ZIP exports still work
+
+Automated:
+
+```bash
+node tests/academic-os-portal.test.mjs
+node tests/academic-os-md.test.mjs
+node tests/assessment-format.test.mjs
+```
+
+---
+
+## v2.2.0 — Academic Operations OS (quick checks)
+
+- [ ] Footer shows **Version 2.2.0**
+- [ ] **Reports & Export → Export to Academic Operations OS** prompts for a semester folder (Chrome/Edge)
+- [ ] Selecting a folder with `03 - Assessment/20 - Assessment Schedule.md` and `22 - Class Test Schedule.md` updates table rows
+- [ ] A `.backup-…md` file appears beside each updated note
+- [ ] Headings / DataviewJS / notes outside the table are unchanged
+- [ ] Summary shows files updated, rows written, skipped rows, warnings
+- [ ] Invalid folder (missing `03 - Assessment`) shows a warning
+- [ ] Excel / Obsidian ZIP exports still work
+
+Automated: `node tests/academic-os-md.test.mjs`
+
+---
+
+## v2.1.0 — Simplified assessment schedule (quick checks)
+
+- [ ] Footer / about shows **Version 2.1.0**
+- [ ] Upload timetable + assessment schedule
+- [ ] **Assessments → Simplified Schedule** shows Module, Semester, Teaching week, Assessment, Assessment format, Weight, Scheduling basis, W/C, Fixed deadline
+- [ ] Formats are specific (e.g. Report, Research Paper) — not “Submission / deadline”
+- [ ] Class tests / labs show **Week commencing** with a W/C date; report submissions show **Fixed deadline**
+- [ ] Mixed events (slides deadline + presentations throughout a week) show both columns
+- [ ] Semester values are numeric (`1`, `2`, …)
+- [ ] **Reports & Export → Assessment Schedule - Simple** downloads a workbook with that sheet name
+- [ ] **Export Obsidian Assessment Schedule** downloads a ZIP with CSV + Markdown
+- [ ] Full save workbook still includes Assessment Events + Assessment Tracking
+- [ ] Reopen a previously saved workbook — plans and assessments restore
+
+Automated: `node tests/assessment-format.test.mjs`
+
+---
+
 # Manual Testing Checklist — Assessment Operations Dashboard v1.0.1
 
 Use this checklist before sharing the dashboard with colleagues or publishing to GitHub Pages.

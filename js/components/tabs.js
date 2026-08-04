@@ -46,6 +46,8 @@ export function bindTabs(onChange) {
 }
 
 export const ASSESSMENT_SUB_VIEWS = [
+  { id: "simplified", label: "Simplified Schedule" },
+  { id: "byWeek", label: "By Week" },
   { id: "timeline", label: "Timeline View" },
   { id: "upcoming", label: "Upcoming Deadlines" },
   { id: "all", label: "All Assessments" },
