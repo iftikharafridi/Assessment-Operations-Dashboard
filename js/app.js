@@ -53,6 +53,7 @@ import { renderDashboardView } from "./views/dashboard.js";
 import { renderTrackerView } from "./views/tracker.js";
 import { renderAssessmentView } from "./views/assessment.js";
 import { renderTimetableView } from "./views/timetable-tab.js";
+import { renderTeachingTeamView } from "./views/teaching-team.js";
 import { renderInvigilationTabView } from "./views/invigilation-tab.js";
 import { renderReportsView } from "./views/reports.js";
 import { renderSettingsView } from "./views/settings.js";
@@ -355,7 +356,7 @@ function renderMain() {
   main.appendChild(viewHost);
 
   const tab = normalizeTabId(state.activeTab);
-  const filterIndependentTabs = ["dashboard", "assessment", "reports", "settings", "invigilation"];
+  const filterIndependentTabs = ["dashboard", "assessment", "reports", "settings", "invigilation", "teachingTeam"];
 
   if (!rows.length && !filterIndependentTabs.includes(tab)) {
     viewHost.innerHTML = `<div class="alert alert-warning" role="status">
@@ -386,6 +387,9 @@ function renderMain() {
           renderShell();
         },
       });
+      break;
+    case "teachingTeam":
+      renderTeachingTeamView(viewCtx);
       break;
     case "invigilation":
       renderInvigilationTabView(viewCtx);

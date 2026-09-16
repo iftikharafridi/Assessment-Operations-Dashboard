@@ -65,9 +65,17 @@ export function buildAssessmentScheduleItems(project, { semesterStart = "" } = {
   });
 }
 
+/**
+ * Place an assessment in a teaching-week column.
+ * Prefer Excel/schedule weekNumber (one column only). Fall back to the
+ * fixed-deadline calendar week only when weekNumber is missing.
+ */
 export function itemInAssessmentTeachingWeek(item, weekNum, semesterStart) {
   if (!weekNum) return false;
-  if (item.weekNumber === weekNum) return true;
+  const matrixWeek = Number(item.weekNumber);
+  if (Number.isFinite(matrixWeek) && matrixWeek > 0) {
+    return matrixWeek === weekNum;
+  }
   if (item.dueDateParsed && semesterStart) {
     const itemWc = weekCommencingMonday(item.dueDateParsed);
     const weekWc = teachingWeekCommencing(semesterStart, weekNum);
@@ -75,6 +83,18 @@ export function itemInAssessmentTeachingWeek(item, weekNum, semesterStart) {
     return dateSortKey(itemWc) === dateSortKey(weekWc);
   }
   return false;
+}
+
+/** True when matrix week exists and the deadline Monday falls in a different teaching week. */
+export function deadlineFallsOutsideMatrixWeek(item, semesterStart) {
+  const matrixWeek = Number(item.weekNumber);
+  if (!Number.isFinite(matrixWeek) || matrixWeek <= 0 || !item.dueDateParsed || !semesterStart) {
+    return false;
+  }
+  const itemWc = weekCommencingMonday(item.dueDateParsed);
+  const weekWc = teachingWeekCommencing(semesterStart, matrixWeek);
+  if (!itemWc || !weekWc) return false;
+  return dateSortKey(itemWc) !== dateSortKey(weekWc);
 }
 
 export function filterAssessmentItemsForWeek(items, weekNum, semesterStart) {

@@ -7,6 +7,7 @@ const state = {
   project: null,
   activeTab: "welcome",
   assessmentSubView: "simplified",
+  teachingTeamSubView: "byTutor",
   simplifiedAssessmentFilters: {
     module: "",
     semester: "",
@@ -161,6 +162,11 @@ export function adjustAssessmentScheduleWeekOffset(delta) {
 
 export function setAssessmentSubView(view) {
   emit({ assessmentSubView: view });
+}
+
+export function setTeachingTeamSubView(view) {
+  const allowed = ["byTutor", "groups"];
+  emit({ teachingTeamSubView: allowed.includes(view) ? view : "byTutor" });
 }
 
 export function setSimplifiedAssessmentFilters(partial) {

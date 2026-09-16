@@ -6,6 +6,7 @@ export const TABS = [
   { id: "assessment", label: "Assessments" },
   { id: "tests", label: "Class Tests" },
   { id: "timetable", label: "Timetable" },
+  { id: "teachingTeam", label: "Teaching Team" },
   { id: "invigilation", label: "Invigilation" },
   { id: "reports", label: "Reports & Export" },
   { id: "settings", label: "Settings / Help" },
@@ -19,6 +20,7 @@ export const TAB_ALIASES = {
   validation: "dashboard",
   summary: "dashboard",
   timetable: "timetable",
+  teachingTeam: "teachingTeam",
   issues: "dashboard",
   reports: "reports",
   settings: "settings",
@@ -52,6 +54,11 @@ export const ASSESSMENT_SUB_VIEWS = [
   { id: "upcoming", label: "Upcoming Deadlines" },
   { id: "all", label: "All Assessments" },
   { id: "tracking", label: "Assessment Tracking" },
+];
+
+export const TEACHING_TEAM_SUB_VIEWS = [
+  { id: "byTutor", label: "By tutor" },
+  { id: "groups", label: "Groups" },
 ];
 
 export function renderSubTabs(activeId, views, dataAttr = "data-sub-tab") {

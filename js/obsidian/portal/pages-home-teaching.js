@@ -57,11 +57,53 @@ function minutesToTime(total) {
 function floorToSlot(mins) { return Math.floor(mins / 30) * 30; }
 function ceilToSlot(mins) { return Math.ceil(mins / 30) * 30; }
 
+function mergeSplitSessions(rows, maxGapMinutes = 30) {
+  if (!rows || !rows.length) return [];
+  if (rows.length === 1) return rows.slice();
+  function typeOf(r) { return String(r["Class type"] || r.Type || "").trim(); }
+  function keyOf(r) {
+    return [r["Module code"], r.Campus, r.Staff, r.Weekday, typeOf(r)].map(x => String(x||"").trim().toLowerCase()).join("|");
+  }
+  const groups = new Map();
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const out = [];
+  for (const list of groups.values()) {
+    const sorted = list.slice().sort((a, b) =>
+      timeToMinutes(a["Start time"]) - timeToMinutes(b["Start time"]) ||
+      timeToMinutes(a["End time"]) - timeToMinutes(b["End time"])
+    );
+    let cur = null;
+    for (const r of sorted) {
+      if (!cur) { cur = Object.assign({}, r, { mergedFrom: 1 }); continue; }
+      const gap = timeToMinutes(r["Start time"]) - timeToMinutes(cur["End time"]);
+      if (gap >= 0 && gap <= maxGapMinutes) {
+        cur = Object.assign({}, cur, { "End time": r["End time"], mergedFrom: (cur.mergedFrom || 1) + 1 });
+      } else {
+        out.push(cur.mergedFrom > 1 ? cur : Object.assign({}, cur));
+        cur = Object.assign({}, r, { mergedFrom: 1 });
+      }
+    }
+    if (cur) out.push(cur.mergedFrom > 1 ? cur : Object.assign({}, cur));
+  }
+  return out.map(r => {
+    if ((r.mergedFrom || 1) <= 1) {
+      const copy = Object.assign({}, r);
+      delete copy.mergedFrom;
+      return copy;
+    }
+    return r;
+  });
+}
+
 const tt = await AOS.loadTable("_Data/Teaching Timetable.md");
 
 function rows() {
   if (!tt.ok) return [];
-  return tt.rows.filter(r => {
+  const filtered = tt.rows.filter(r => {
     if (filterCampus && r.Campus !== filterCampus) return false;
     if (filterModule && r["Module code"] !== filterModule) return false;
     if (filterStaff && !String(r.Staff||"").includes(filterStaff)) return false;
@@ -72,6 +114,7 @@ function rows() {
     }
     return true;
   });
+  return mergeSplitSessions(filtered);
 }
 
 function renderFilters() {
@@ -179,10 +222,10 @@ function renderGrid(list) {
       const width = Math.max(((end - start) / totalMins) * 100, 4);
       const top = 6 + event.lane * laneHeight;
       const colour = campusColor(r.Campus);
-      const tip = [r["Module code"], r["Module name"], r["Class type"], (r["Start time"]||"") + "–" + (r["End time"]||""), r.Campus, r.Staff, r["Student groups"]].filter(Boolean).join(" · ");
+      const tip = [r["Module code"], r["Module name"], r["Class type"], (r["Start time"]||"") + "–" + (r["End time"]||""), r.Campus, r.Staff, r["Student groups"], r.mergedFrom > 1 ? ("merged " + r.mergedFrom + " blocks") : ""].filter(Boolean).join(" · ");
       blocks += \`<div class="aos-cal-event aos-cal-event-timed aos-teach-block" title="\${AOS.esc(tip)}" style="--aos-chip:\${colour};top:\${top}px;left:calc(\${left}% + 2px);width:calc(\${width}% - 4px);height:46px">
         <div class="aos-cal-event-top"><strong>\${AOS.esc(r["Module code"] || "")}</strong>
-          <span>\${AOS.esc(r["Class type"] || "")}</span></div>
+          <span>\${AOS.esc(r["Class type"] || "")}\${r.mergedFrom > 1 ? " ·✕" + r.mergedFrom : ""}</span></div>
         <div class="aos-cal-event-meta">\${AOS.esc(r["Module name"] || "")}</div>
         <div class="aos-cal-event-meta">\${AOS.esc(r["Start time"])}–\${AOS.esc(r["End time"])} · \${AOS.esc(r.Campus || "")}</div>
       </div>\`;

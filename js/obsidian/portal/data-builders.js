@@ -20,10 +20,10 @@ import { getTestSlot, timeToMinutes } from "../../utils/time.js";
 import { weekCommencingMonday, parseFlexibleDate } from "../../utils/dates.js";
 import { unique } from "../../utils/dom.js";
 import { APP_VERSION } from "../../config/constants.js";
+import { buildTeachingTeamRows as buildTeachingTeamRowsShared } from "../../analytics/teaching-team.js";
 import {
   TEACHING_TIMETABLE_HEADERS,
   MODULES_HEADERS,
-  TEACHING_TEAM_HEADERS,
   ASSESSMENT_SCHEDULE_HEADERS,
   CLASS_TEST_SCHEDULE_HEADERS,
   INVIGILATION_HEADERS,
@@ -69,16 +69,15 @@ function cohortAndGroupFromText(studentGroups) {
   return { cohort, group: letters.join(" & ") };
 }
 
-function sessionHours(start, end) {
-  const mins = timeToMinutes(end) - timeToMinutes(start);
-  return mins > 0 ? Math.round((mins / 60) * 100) / 100 : 0;
-}
-
 function splitStaffNames(staff) {
   return String(staff || "")
     .split(/[,;/&]| and /i)
     .map((s) => s.trim())
     .filter((s) => s && !/^tbc|tba|n\/a|none$/i.test(s));
+}
+
+export function buildTeachingTeamRows(project) {
+  return buildTeachingTeamRowsShared(project);
 }
 
 export function buildTeachingTimetableRows(project) {
@@ -186,53 +185,6 @@ export function buildModulesRows(project) {
     ]);
 
   return { headers: MODULES_HEADERS, rows, warnings: [] };
-}
-
-export function buildTeachingTeamRows(project) {
-  /** @type {Map<string, object>} */
-  const map = new Map();
-  for (const r of project.getTimetableRows()) {
-    const staffList = splitStaffNames(r.Staff);
-    if (!staffList.length) continue;
-    for (const staff of staffList) {
-      const key = [staff, r["Module code"], r.Campus].join("|");
-      const cur = map.get(key) || {
-        staff,
-        moduleCode: r["Module code"] || "",
-        moduleName: r["Module name"] || "",
-        campus: r.Campus || "",
-        sessions: 0,
-        lectures: 0,
-        seminars: 0,
-        hours: 0,
-      };
-      cur.sessions += 1;
-      if (/lecture/i.test(r.Type || "")) cur.lectures += 1;
-      if (/seminar/i.test(r.Type || "")) cur.seminars += 1;
-      cur.hours += sessionHours(r["Start time"], r["End time"]);
-      map.set(key, cur);
-    }
-  }
-
-  const rows = [...map.values()]
-    .sort(
-      (a, b) =>
-        a.staff.localeCompare(b.staff) ||
-        a.moduleCode.localeCompare(b.moduleCode) ||
-        a.campus.localeCompare(b.campus)
-    )
-    .map((t) => [
-      t.staff,
-      t.moduleCode,
-      t.moduleName,
-      t.campus,
-      String(t.sessions),
-      String(t.lectures),
-      String(t.seminars),
-      String(Math.round(t.hours * 100) / 100),
-    ]);
-
-  return { headers: TEACHING_TEAM_HEADERS, rows, warnings: [] };
 }
 
 export function buildAssessmentSchedulePortalRows(project) {

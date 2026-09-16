@@ -566,6 +566,21 @@ td.has-session.session-span-cell {
   text-transform: uppercase;
 }
 .session-meta, .session-staff, .session-grp, .session-size { color: var(--muted); font-size: 0.65rem; }
+.session-merged {
+  display: inline-block;
+  margin-left: 0.2rem;
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 650;
+  font-size: 0.6rem;
+}
+.group-letter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 
 .data-table {
   width: 100%;
@@ -1033,6 +1048,16 @@ body.is-welcome .alerts:empty {
   margin-bottom: 0.2rem;
 }
 .cts-chip-compact .cts-chip-time { display: block; font-weight: 600; }
+.cts-date-off-week {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, #d97706 18%, transparent);
+  color: #92400e;
+  font-size: 0.65rem;
+  font-weight: 650;
+}
 .cts-week-col.is-current,
 .cts-semester-col.is-current {
   border-color: var(--accent);

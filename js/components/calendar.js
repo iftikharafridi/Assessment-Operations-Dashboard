@@ -2,6 +2,7 @@ import { WEEKDAYS, TIME_SLOTS, CALENDAR_HOURS, campusColor, campusDisplayName } 
 import { parseGroups, typeBadge } from "../utils/groups.js";
 import { esc, unique } from "../utils/dom.js";
 import { sessionSlotSpan, slotIndex } from "../utils/time.js";
+import { mergeSplitSessions } from "../utils/session-merge.js";
 import { getSessionStyle, planKey } from "../planner/plans.js";
 import { sessionHasConflict } from "../analytics/dashboard.js";
 
@@ -17,9 +18,10 @@ function renderSessionBlocks(cellSessions, project) {
     const baseType = typeBadge(s.Type);
     const styleClass = planStyle || baseType;
     const span = sessionSlotSpan(s["Start time"], s["End time"]).span;
-    html += `<div class="session ${styleClass}${planStyle && baseType === "sem" ? " is-seminar" : ""}" data-id="${sid}" data-span="${span}" title="${esc(s.Activity)}">
+    const mergedNote = s.mergedFrom > 1 ? ` · merged ${s.mergedFrom} blocks` : "";
+    html += `<div class="session ${styleClass}${planStyle && baseType === "sem" ? " is-seminar" : ""}" data-id="${sid}" data-span="${span}" title="${esc(s.Activity)}${esc(mergedNote)}">
       <div class="session-code">${esc(s["Module code"])} <span class="session-type">${esc(s.Type.slice(0, 3))}</span></div>
-      <div class="session-meta">${esc(s["Start time"])}–${esc(s["End time"])}</div>
+      <div class="session-meta">${esc(s["Start time"])}–${esc(s["End time"])}${s.mergedFrom > 1 ? ` <span class="session-merged" title="Merged ${s.mergedFrom} timetable blocks">✕${s.mergedFrom}</span>` : ""}</div>
       <div class="session-staff">${esc(s.Staff)}</div>
       ${groups.letterGroups.length ? `<div class="session-grp">Grp ${esc(groups.letterGroups.join(" & "))}</div>` : ""}
       ${s.Room ? `<div class="session-room">Room: ${esc(s.Room)}</div>` : ""}
@@ -134,7 +136,8 @@ export function renderCalendarLayoutToolbar(layout = "day-side") {
 }
 
 export function renderWeeklyCalendar(rows, project, { layout = "day-side" } = {}) {
-  const campuses = unique(rows.map((r) => r.Campus)).sort();
+  const mergedRows = mergeSplitSessions(rows);
+  const campuses = unique(mergedRows.map((r) => r.Campus)).sort();
   let html = renderCalendarLayoutToolbar(layout);
   html += `<div class="calendar-legend">
     <span><i class="dot lec"></i> Lecture</span>
@@ -146,7 +149,7 @@ export function renderWeeklyCalendar(rows, project, { layout = "day-side" } = {}
   </div>`;
 
   for (const campus of campuses) {
-    const campusRows = rows.filter((r) => r.Campus === campus);
+    const campusRows = mergedRows.filter((r) => r.Campus === campus);
     if (!campusRows.length) continue;
 
     html += `<section class="campus-section">

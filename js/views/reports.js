@@ -1,7 +1,8 @@
 import { esc, unique } from "../utils/dom.js";
-import { intro } from "../components/table.js";
+import { intro, statsBar } from "../components/table.js";
 import { listExportPresets, EXPORT_BUNDLES } from "../excel/export-presets.js";
 import { campusDisplayName } from "../config/constants.js";
+import { buildGroupsReport } from "../analytics/teaching-team.js";
 
 function renderBundleCard(bundle) {
   return `<article class="export-bundle-card">
@@ -16,12 +17,22 @@ export function renderReportsView({ project, container, state, onExport, onSave,
   const presets = listExportPresets(project);
   const campuses = unique(project.getTimetableRows().map((r) => r.Campus)).sort();
   const dirty = state.dirty;
+  const groupsSummary = buildGroupsReport(project).summary;
 
   container.innerHTML =
     intro("Download operational Excel packs for colleagues. All exports stay on your computer — nothing is uploaded.") +
     (dirty
       ? `<div class="alert alert-warning"><strong>Unsaved changes</strong> — export or Save workbook to include your latest edits.</div>`
       : "") +
+    `<section class="panel-section">
+      <h3 class="section-heading">Teaching groups snapshot</h3>
+      <p class="muted small">From the timetable — open <strong>Teaching Team → Groups</strong> for the full report.</p>
+      ${statsBar([
+        `${groupsSummary.letterGroupCount} letter groups`,
+        `${groupsSummary.mergedSectionCount} merged sections`,
+        `${groupsSummary.admissionCohortCount} admission groups`,
+      ])}
+    </section>` +
     `<section class="panel-section">
       <h3 class="section-heading">Recommended export packs</h3>
       <div class="export-bundle-grid">${EXPORT_BUNDLES.map(renderBundleCard).join("")}</div>

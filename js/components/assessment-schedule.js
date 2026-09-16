@@ -13,6 +13,7 @@ import {
   dayColumnsForAssessmentWeek,
   listAssessmentFilterOptions,
   itemMatchesAssessmentScheduleFilters,
+  deadlineFallsOutsideMatrixWeek,
 } from "../analytics/assessment-viz.js";
 import { getCurrentTeachingWeek, getAssessmentTypeLabel, resolveSemesterStart } from "../analytics/assessment.js";
 import { teachingWeekCommencing } from "../analytics/class-test-viz.js";
@@ -98,17 +99,22 @@ function cohortBadge(item) {
   return `<span class="cts-cohort-badge" title="${esc(c.raw)}">${esc(c.cohortLabel)} · ${esc(c.studyYear)}${c.studySemesterLabel ? ` · ${esc(c.studySemesterLabel)}` : ""}</span>`;
 }
 
-function renderAssessmentChip(item, { compact = false } = {}) {
+function renderAssessmentChip(item, { compact = false, semesterStart = "" } = {}) {
   const typeCls = TYPE_CLASS[item.assessmentType] || TYPE_CLASS.other;
   const dueLine = item.dueDateParsed
     ? formatShortDate(item.dueDateParsed)
     : item.dueDate || item.weekLabel;
   const typeLabel = getAssessmentTypeLabel(item.assessmentType);
+  const dateOffWeek = deadlineFallsOutsideMatrixWeek(item, semesterStart);
+  const offHint = dateOffWeek
+    ? `<span class="cts-date-off-week" title="Fixed deadline falls in a different calendar week than the schedule Week ${esc(String(item.weekNumber))}">Deadline ${esc(dueLine)}</span>`
+    : "";
 
   if (compact) {
     return `<div class="cts-chip cts-chip-compact timeline-chip ${typeCls}" title="${esc(item.rawText)}">
       <strong>${esc(item.moduleCode)}</strong> ${esc(item.assessmentCode || typeLabel)}
       <span class="muted small">${esc(item.weekLabel)}</span>
+      ${offHint}
     </div>`;
   }
 
@@ -121,6 +127,7 @@ function renderAssessmentChip(item, { compact = false } = {}) {
     <div class="muted small">${esc(item.moduleName)}</div>
     <div class="cts-chip-when">${esc(item.assessmentCode || item.title?.slice(0, 40) || "—")} · ${esc(item.weekLabel)}</div>
     <div class="cts-chip-time">${item.weekday ? `${esc(item.weekday)} · ` : ""}${esc(dueLine)}</div>
+    ${offHint ? `<div class="cts-chip-meta">${offHint}</div>` : ""}
     <div class="cts-chip-meta muted small">
       ${item.weight ? `${esc(item.weight)} · ` : ""}${item.dueText ? esc(item.dueText.slice(0, 60)) : ""}
       ${item.campuses.length ? ` · ${esc(item.campuses.join(", "))}` : ""}
@@ -144,7 +151,7 @@ function renderThisWeekDayBoard(weekItems, ctx) {
       </div>
       <div class="cts-day-body">${
         col.items.length
-          ? col.items.map((i) => renderAssessmentChip(i)).join("")
+          ? col.items.map((i) => renderAssessmentChip(i, { semesterStart: ctx.semesterStart })).join("")
           : `<span class="muted small cts-empty-day-inline">—</span>`
       }</div>
     </div>`;
@@ -154,7 +161,7 @@ function renderThisWeekDayBoard(weekItems, ctx) {
   if (unscheduled.length) {
     html += `<div class="assess-week-floating">
       <h5 class="muted small">Scheduled this week (no specific day)</h5>
-      <div class="cts-group-items">${unscheduled.map((i) => renderAssessmentChip(i)).join("")}</div>
+      <div class="cts-group-items">${unscheduled.map((i) => renderAssessmentChip(i, { semesterStart: ctx.semesterStart })).join("")}</div>
     </div>`;
   }
   return html;
@@ -192,7 +199,7 @@ function renderSemesterMapView(items, ctx) {
           <strong>${esc(col.weekLabel)}</strong>
           ${wc ? `<span class="muted small">${esc(wc)}</span>` : ""}
         </div>
-        <div class="cts-semester-body">${col.items.length ? col.items.map((i) => renderAssessmentChip(i, { compact: true })).join("") : `<span class="muted small">—</span>`}</div>
+        <div class="cts-semester-body">${col.items.length ? col.items.map((i) => renderAssessmentChip(i, { compact: true, semesterStart: ctx.semesterStart })).join("") : `<span class="muted small">—</span>`}</div>
       </div>`;
     })
     .join("")}</div></div>`;
@@ -211,18 +218,18 @@ function renderTimelineView(items, ctx) {
           ${wc ? `<span class="muted small">${esc(wc)}</span>` : ""}
           <span class="muted small">${week.items.length} item${week.items.length === 1 ? "" : "s"}</span>
         </div>
-        <div class="cts-week-body">${week.items.map((i) => renderAssessmentChip(i)).join("")}</div>
+        <div class="cts-week-body">${week.items.map((i) => renderAssessmentChip(i, { semesterStart: ctx.semesterStart })).join("")}</div>
       </div>`;
     })
     .join("")}</div></div>`;
 }
 
-function renderGroupedPanels(groups, nameFn = (g) => g.name) {
+function renderGroupedPanels(groups, nameFn = (g) => g.name, semesterStart = "") {
   return `<div class="cts-group-list">${groups
     .map(
       (group) => `<details class="cts-group-panel" open>
         <summary><strong>${esc(nameFn(group))}</strong> <span class="muted small">${group.items.length} item${group.items.length === 1 ? "" : "s"}</span></summary>
-        <div class="cts-group-items">${group.items.map((i) => renderAssessmentChip(i)).join("")}</div>
+        <div class="cts-group-items">${group.items.map((i) => renderAssessmentChip(i, { semesterStart })).join("")}</div>
       </details>`
     )
     .join("")}</div>`;
@@ -235,15 +242,15 @@ function renderViewContent(items, view, ctx) {
     case "semester":
       return renderSemesterMapView(items, ctx);
     case "by-module":
-      return renderGroupedPanels(groupAssessmentByModule(items), (g) => `${g.name} — ${g.moduleName}`);
+      return renderGroupedPanels(groupAssessmentByModule(items), (g) => `${g.name} — ${g.moduleName}`, ctx.semesterStart);
     case "by-type":
-      return renderGroupedPanels(groupAssessmentByType(items));
+      return renderGroupedPanels(groupAssessmentByType(items), (g) => g.name, ctx.semesterStart);
     case "by-cohort":
-      return renderGroupedPanels(groupAssessmentByCohort(items));
+      return renderGroupedPanels(groupAssessmentByCohort(items), (g) => g.name, ctx.semesterStart);
     case "by-campus":
-      return renderGroupedPanels(groupAssessmentByCampus(items));
+      return renderGroupedPanels(groupAssessmentByCampus(items), (g) => g.name, ctx.semesterStart);
     case "by-schedule-semester":
-      return renderGroupedPanels(groupAssessmentByScheduleSemester(items));
+      return renderGroupedPanels(groupAssessmentByScheduleSemester(items), (g) => g.name, ctx.semesterStart);
     default:
       return renderTimelineView(items, ctx);
   }
